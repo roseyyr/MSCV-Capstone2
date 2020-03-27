@@ -32,7 +32,7 @@ using namespace std;
 
 void LoadImages(const string &strAssociationFilename, vector<string> &vstrImageFilenamesRGB,
                 vector<string> &vstrImageFilenamesD, vector<double> &vTimestamps);
-
+void LoadMask(const string &mask_path, cv::Mat &mask);
 int main(int argc, char **argv)
 {
     if(argc != 5)
@@ -50,6 +50,7 @@ int main(int argc, char **argv)
 
     // Check consistency in the number of images and depthmaps
     int nImages = vstrImageFilenamesRGB.size();
+    std::cout<<"nImages:"<<nImages<<std::endl;
     if(vstrImageFilenamesRGB.empty())
     {
         cerr << endl << "No images found in provided path." << endl;
@@ -74,11 +75,15 @@ int main(int argc, char **argv)
 
     // Main loop
     cv::Mat imRGB, imD;
+    cv::Mat mask(480,640,CV_8U);
     for(int ni=0; ni<nImages; ni++)
     {
         // Read image and depthmap from file
         imRGB = cv::imread(string(argv[3])+"/"+vstrImageFilenamesRGB[ni],CV_LOAD_IMAGE_UNCHANGED);
         imD = cv::imread(string(argv[3])+"/"+vstrImageFilenamesD[ni],CV_LOAD_IMAGE_UNCHANGED);
+	string mask_path = string(argv[3])+"/segment/"+vstrImageFilenamesRGB[ni].substr(4,17)+".msk";
+	//cout<<mask_path<<endl;
+        LoadMask(mask_path,mask);
         double tframe = vTimestamps[ni];
 
         if(imRGB.empty())
@@ -93,9 +98,10 @@ int main(int argc, char **argv)
 #else
         std::chrono::monotonic_clock::time_point t1 = std::chrono::monotonic_clock::now();
 #endif
-
+        //cout<<"before tracking..."<<endl;
         // Pass the image to the SLAM system
-        SLAM.TrackRGBD(imRGB,imD,tframe);
+        SLAM.TrackRGBD(imRGB,imD,tframe,mask);
+	//cout<<"after tracking..."<<endl;
 
 #ifdef COMPILEDWITHC11
         std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
@@ -106,7 +112,6 @@ int main(int argc, char **argv)
         double ttrack= std::chrono::duration_cast<std::chrono::duration<double> >(t2 - t1).count();
 
         vTimesTrack[ni]=ttrack;
-
         // Wait to load the next frame
         double T=0;
         if(ni<nImages-1)
@@ -138,7 +143,28 @@ int main(int argc, char **argv)
 
     return 0;
 }
-
+void LoadMask(const string &mask_path, cv::Mat &mask)
+{
+    int H=480,W=640;
+    ifstream fMask;
+    fMask.open(mask_path.c_str());
+    for(int i=0;i<H;i++)
+    {
+	//cout<<i<<endl;
+        string s;
+	getline(fMask,s);
+	stringstream ss;
+	ss << s;
+	int t;
+	for(int j=0;j<W;j++)
+	{
+            ss >> t;
+	    mask.at<int>(i,j) = t;
+	    //cout<<t<<" ";
+	}
+	//cout<<endl;
+    } 
+}
 void LoadImages(const string &strAssociationFilename, vector<string> &vstrImageFilenamesRGB,
                 vector<string> &vstrImageFilenamesD, vector<double> &vTimestamps)
 {

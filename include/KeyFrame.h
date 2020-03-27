@@ -173,6 +173,8 @@ public:
     // Pose relative to parent (this is computed when bad flag is activated)
     cv::Mat mTcp;
 
+    // Segmentation Mask
+    cv::Mat seg_mask;
     // Scale
     const int mnScaleLevels;
     const float mfScaleFactor;
