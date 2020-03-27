@@ -129,8 +129,10 @@ protected:
 
     void CheckReplacedInLastFrame();
     bool TrackReferenceKeyFrame();
+    bool ObjectTrackReferenceKeyFrame();
     void UpdateLastFrame();
     bool TrackWithMotionModel();
+    bool ObjectTrackWithMotionModel();
 
     bool Relocalization();
 

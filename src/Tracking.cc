@@ -753,6 +753,128 @@ void Tracking::CheckReplacedInLastFrame()
     }
 }
 
+// Sort by value in descending order
+bool sortByVal(const pair<pair<int,int>, int> &a, const pair<pair<int,int>, int> &b)
+{
+    return (a.second > b.second);
+}
+
+
+bool Tracking::ObjectTrackReferenceKeyFrame()
+{
+    // Compute Bag of Words vector
+    mCurrentFrame.ComputeBoW();
+
+    // We perform first an ORB matching with the reference keyframe
+    // If enough matches are found we setup a PnP solver
+    ORBmatcher matcher(0.7,true);
+    vector<MapPoint*> vpMapPointMatches;
+    
+    std::vector<std::pair<int,int>> matches;
+    int nmatches = matcher.SearchByBoW(mpReferenceKF,mCurrentFrame,vpMapPointMatches);
+
+    if(nmatches<15)
+        return false;
+
+    mCurrentFrame.mvpMapPoints = vpMapPointMatches;
+    mCurrentFrame.SetPose(mLastFrame.mTcw);
+
+    // Connect the features to objects
+    std::map<int,std::vector<int>> objmap;
+    std::map<int,int> assign1;
+    for(int i=0;i<mCurrentFrame.N;i++)
+    {
+        int x = (int)mCurrentFrame.mvKeysUn[i].pt.x;
+        int y = (int)mCurrentFrame.mvKeysUn[i].pt.y;
+        int obj_idx = mCurrentFrame.seg_mask.at<int>(y,x);
+        assign1[i] = obj_idx;
+        if(objmap.count(obj_idx))
+        {
+            objmap[obj_idx].push_back(i);
+        }
+        else
+        {
+            vector<int> feature_indices = {i};
+            objmap[obj_idx] = feature_indices;
+        }
+    }
+
+    std::map<int,int> assign2;
+    for(int i=0;i<mLastFrame.N;i++)
+    {
+        int x = (int)mLastFrame.mvKeysUn[i].pt.x;
+        int y = (int)mLastFrame.mvKeysUn[i].pt.y;
+        int obj_idx = mLastFrame.seg_mask.at<int>(y,x);
+        assign2[i] = obj_idx;
+    }
+    // Compute the votes
+    std::map<std::pair<int,int>,int> votes;
+    int M = matches.size();
+    for(int i=0;i<M;i++)
+    {
+        int idx1 = matches[i].first, idx2 = matches[i].second;
+        int obj_idx1 = assign1[idx1], obj_idx2 = assign2[idx2];
+        pair<int,int> obj_match(obj_idx1, obj_idx2);
+        if(votes.count(obj_match))
+        {
+            votes[obj_match] += 1;
+        }
+        else
+        {
+            votes[obj_match] = 1;
+        }
+    }
+
+    // Sort the votes in descending order
+    vector<pair<pair<int,int>,int>> vec(votes.begin(),votes.end());
+    sort(vec.begin(),vec.end(),sortByVal);
+
+    // Compute the pose from each object match
+    std::set<int> used1, used2;
+    vector<cv::Mat> poses;
+    cv::Mat pose;
+    int L = vec.size();
+    for(int i=0;i<L;i++)
+    {
+        int vote = vec[i].second;
+        if(vote < 10) break;
+        int obj_idx1 = vec[i].first.first, obj_idx2 = vec[i].first.second;
+        if(!used1.count(obj_idx1) && !used2.count(obj_idx2))
+        {
+            Optimizer::ObjectPoseOptimization(&mCurrentFrame,objmap[obj_idx1],pose);
+            poses.push_back(pose.clone());
+        }
+    }
+
+    // RANSAC to pick the majority
+
+    // cast away points belong to the moving objects
+
+    Optimizer::PoseOptimization(&mCurrentFrame);
+
+    // Discard outliers
+    int nmatchesMap = 0;
+    for(int i =0; i<mCurrentFrame.N; i++)
+    {
+        if(mCurrentFrame.mvpMapPoints[i])
+        {
+            if(mCurrentFrame.mvbOutlier[i])
+            {
+                MapPoint* pMP = mCurrentFrame.mvpMapPoints[i];
+
+                mCurrentFrame.mvpMapPoints[i]=static_cast<MapPoint*>(NULL);
+                mCurrentFrame.mvbOutlier[i]=false;
+                pMP->mbTrackInView = false;
+                pMP->mnLastFrameSeen = mCurrentFrame.mnId;
+                nmatches--;
+            }
+            else if(mCurrentFrame.mvpMapPoints[i]->Observations()>0)
+                nmatchesMap++;
+        }
+    }
+
+    return nmatchesMap>=10;
+}
 
 bool Tracking::TrackReferenceKeyFrame()
 {
@@ -862,6 +984,145 @@ void Tracking::UpdateLastFrame()
         if(vDepthIdx[j].first>mThDepth && nPoints>100)
             break;
     }
+} 
+
+bool Tracking::ObjectTrackWithMotionModel()
+{
+    ORBmatcher matcher(0.9,true);
+
+    // Update last frame pose according to its reference keyframe
+    // Create "visual odometry" points if in Localization Mode
+    UpdateLastFrame();
+
+    mCurrentFrame.SetPose(mVelocity*mLastFrame.mTcw);
+
+    fill(mCurrentFrame.mvpMapPoints.begin(),mCurrentFrame.mvpMapPoints.end(),static_cast<MapPoint*>(NULL));
+
+    // Project points seen in previous frame
+    int th;
+    if(mSensor!=System::STEREO)
+        th=15;
+    else
+        th=7;
+    std::vector<pair<int,int>> matches;
+    int nmatches = matcher.ObjectSearchByProjection(mCurrentFrame,mLastFrame,th,mSensor==System::MONOCULAR,matches);
+
+    // If few matches, uses a wider window search
+    if(nmatches<20)
+    {
+        fill(mCurrentFrame.mvpMapPoints.begin(),mCurrentFrame.mvpMapPoints.end(),static_cast<MapPoint*>(NULL));
+	matches.clear();
+        nmatches = matcher.ObjectSearchByProjection(mCurrentFrame,mLastFrame,2*th,mSensor==System::MONOCULAR,matches);
+    }
+
+    if(nmatches<20)
+        return false;
+
+    // Connect the features to objects
+    std::map<int,std::vector<int>> objmap;
+    std::map<int,int> assign1;
+    for(int i=0;i<mCurrentFrame.N;i++)
+    {
+        int x = (int)mCurrentFrame.mvKeysUn[i].pt.x;
+	int y = (int)mCurrentFrame.mvKeysUn[i].pt.y;
+	int obj_idx = mCurrentFrame.seg_mask.at<int>(y,x);
+	assign1[i] = obj_idx;
+	if(objmap.count(obj_idx))
+	{
+	    objmap[obj_idx].push_back(i);
+	}
+	else
+	{
+	    vector<int> feature_indices = {i};
+	    objmap[obj_idx] = feature_indices;
+	} 
+    }    
+
+    std::map<int,int> assign2;
+    for(int i=0;i<mLastFrame.N;i++)
+    {
+        int x = (int)mLastFrame.mvKeysUn[i].pt.x;
+        int y = (int)mLastFrame.mvKeysUn[i].pt.y;
+        int obj_idx = mLastFrame.seg_mask.at<int>(y,x);
+        assign2[i] = obj_idx;
+    }
+
+    // Compute the votes 
+    std::map<std::pair<int,int>,int> votes;
+    int M = matches.size();
+    for(int i=0;i<M;i++)
+    {
+        int idx1 = matches[i].first, idx2 = matches[i].second;
+        int obj_idx1 = assign1[idx1], obj_idx2 = assign2[idx2];
+	pair<int,int> obj_match(obj_idx1, obj_idx2);
+	if(votes.count(obj_match))
+	{
+	    votes[obj_match] += 1;
+	}
+	else
+	{
+            votes[obj_match] = 1;
+	}
+    }
+    
+    // Sort the votes in descending order
+    vector<pair<pair<int,int>,int>> vec(votes.begin(),votes.end());
+    sort(vec.begin(),vec.end(),sortByVal);
+
+    // Compute the pose from each object match
+    std::set<int> used1, used2;
+    vector<cv::Mat> poses;
+    cv::Mat pose;
+    int L = vec.size();
+    for(int i=0;i<L;i++)
+    {
+        int vote = vec[i].second;
+	if(vote < 10) break;
+	int obj_idx1 = vec[i].first.first, obj_idx2 = vec[i].first.second;
+	if(!used1.count(obj_idx1) && !used2.count(obj_idx2))
+	{
+            Optimizer::ObjectPoseOptimization(&mCurrentFrame,objmap[obj_idx1],pose);
+            poses.push_back(pose.clone());
+	}
+    }
+
+    // RANSAC to pick the majority
+
+    // cast away points on moving objects
+
+    
+
+    // Optimize frame pose with all matches
+    Optimizer::PoseOptimization(&mCurrentFrame);
+
+    // Discard outliers
+    int nmatchesMap = 0;
+    for(int i =0; i<mCurrentFrame.N; i++)
+    {
+        if(mCurrentFrame.mvpMapPoints[i])
+        {
+            if(mCurrentFrame.mvbOutlier[i])
+            {
+                MapPoint* pMP = mCurrentFrame.mvpMapPoints[i];
+
+                mCurrentFrame.mvpMapPoints[i]=static_cast<MapPoint*>(NULL);
+                mCurrentFrame.mvbOutlier[i]=false;
+                pMP->mbTrackInView = false;
+                pMP->mnLastFrameSeen = mCurrentFrame.mnId;
+                nmatches--;
+            }
+            else if(mCurrentFrame.mvpMapPoints[i]->Observations()>0)
+                nmatchesMap++;
+        }
+    }
+
+    if(mbOnlyTracking)
+    {
+        mbVO = nmatchesMap<10;
+        return nmatches>20;
+    }
+
+    return nmatchesMap>=10;
 }
 
 bool Tracking::TrackWithMotionModel()

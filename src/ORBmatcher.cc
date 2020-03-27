@@ -1325,7 +1325,7 @@ int ORBmatcher::SearchBySim3(KeyFrame *pKF1, KeyFrame *pKF2, vector<MapPoint*> &
     return nFound;
 }
 
-int ORBmatcher::ObjectSearchByProjection(Frame &CurrentFrame, const Frame &LastFrame, const float th, const bool bMono, std::vector<pair<int,int>>& matches)
+int ORBmatcher::ObjectSearchByProjection(Frame &CurrentFrame, const Frame &LastFrame, const float th, const bool bMono, std::vector<std::pair<int,int>>& matches)
 {
     int nmatches = 0;
 
@@ -1426,7 +1426,7 @@ int ORBmatcher::ObjectSearchByProjection(Frame &CurrentFrame, const Frame &LastF
                 if(bestDist<=TH_HIGH)
                 {
                     CurrentFrame.mvpMapPoints[bestIdx2]=pMP;
-		    matches.push_back(pair<int,int>(bestIdx,i));
+		    matches.push_back(std::pair<int,int>(bestIdx2,i));
                     nmatches++;
 
                     if(mbCheckOrientation)

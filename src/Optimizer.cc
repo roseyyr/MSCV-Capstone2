@@ -236,7 +236,7 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs, const vector<M
 
 }
 
-int Optimizer::ObjectPoseOptimization(Frame *pFrame,std::vector<MapPoint*>& objMapPoints,std::vector<cv::KeyPoint>& objKeyPoints)
+int Optimizer::ObjectPoseOptimization(Frame *pFrame,std::vector<int>& idx_arr,cv::Mat &pose)
 {
     g2o::SparseOptimizer optimizer;
     g2o::BlockSolver_6_3::LinearSolverType * linearSolver;
@@ -258,7 +258,7 @@ int Optimizer::ObjectPoseOptimization(Frame *pFrame,std::vector<MapPoint*>& objM
     optimizer.addVertex(vSE3);
 
     // Set MapPoint vertices
-    const int N = objMapPoints.size();
+    const int N = idx_arr.size();
 
     vector<g2o::EdgeSE3ProjectXYZOnlyPose*> vpEdgesMono;
     vector<size_t> vnIndexEdgeMono;
@@ -277,20 +277,20 @@ int Optimizer::ObjectPoseOptimization(Frame *pFrame,std::vector<MapPoint*>& objM
     {
     unique_lock<mutex> lock(MapPoint::mGlobalMutex);
 
-    for(int i=0; i<N; i++)
+    for(int idx=0; idx<N; idx++)
     {
-        MapPoint* pMP = objMapPoints[i];
+	int i = idx_arr[idx];
+        MapPoint* pMP = pFrame->mvpMapPoints[i];
         if(pMP)
         {
             // Monocular observation
-            //if(pFrame->mvuRight[i]<0)
-	    if(true)
+            if(pFrame->mvuRight[i]<0)
             {
                 nInitialCorrespondences++;
                 pFrame->mvbOutlier[i] = false;
 
                 Eigen::Matrix<double,2,1> obs;
-                const cv::KeyPoint &kpUn = objKeyPoints[i];
+                const cv::KeyPoint &kpUn = pFrame->mvKeysUn[i];
                 obs << kpUn.pt.x, kpUn.pt.y;
 
                 g2o::EdgeSE3ProjectXYZOnlyPose* e = new g2o::EdgeSE3ProjectXYZOnlyPose();
@@ -445,8 +445,8 @@ int Optimizer::ObjectPoseOptimization(Frame *pFrame,std::vector<MapPoint*>& objM
     // Recover optimized pose and return number of inliers
     g2o::VertexSE3Expmap* vSE3_recov = static_cast<g2o::VertexSE3Expmap*>(optimizer.vertex(0));
     g2o::SE3Quat SE3quat_recov = vSE3_recov->estimate();
-    cv::Mat pose = Converter::toCvMat(SE3quat_recov);
-    pFrame->SetPose(pose);
+    pose = Converter::toCvMat(SE3quat_recov);
+    //pFrame->SetPose(pose);
 
     return nInitialCorrespondences-nBad;
 }
