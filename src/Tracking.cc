@@ -770,8 +770,8 @@ bool Tracking::ObjectTrackReferenceKeyFrame()
     ORBmatcher matcher(0.7,true);
     vector<MapPoint*> vpMapPointMatches;
     
-    std::vector<std::pair<int,int>> matches;
-    int nmatches = matcher.SearchByBoW(mpReferenceKF,mCurrentFrame,vpMapPointMatches);
+    std::map<int,int> matches;
+    int nmatches = matcher.ObjectSearchByBoW(mpReferenceKF,mCurrentFrame,vpMapPointMatches,matches);
 
     if(nmatches<15)
         return false;
@@ -809,10 +809,10 @@ bool Tracking::ObjectTrackReferenceKeyFrame()
     }
     // Compute the votes
     std::map<std::pair<int,int>,int> votes;
-    int M = matches.size();
-    for(int i=0;i<M;i++)
+    std::map<int,int>::iterator ite;
+    for(ite=matches.begin();ite!=matches.end();ite++)
     {
-        int idx1 = matches[i].first, idx2 = matches[i].second;
+        int idx1 = ite->first, idx2 = ite->second;
         int obj_idx1 = assign1[idx1], obj_idx2 = assign2[idx2];
         pair<int,int> obj_match(obj_idx1, obj_idx2);
         if(votes.count(obj_match))
@@ -1004,7 +1004,7 @@ bool Tracking::ObjectTrackWithMotionModel()
         th=15;
     else
         th=7;
-    std::vector<pair<int,int>> matches;
+    std::map<int,int> matches;
     int nmatches = matcher.ObjectSearchByProjection(mCurrentFrame,mLastFrame,th,mSensor==System::MONOCULAR,matches);
 
     // If few matches, uses a wider window search
@@ -1049,10 +1049,10 @@ bool Tracking::ObjectTrackWithMotionModel()
 
     // Compute the votes 
     std::map<std::pair<int,int>,int> votes;
-    int M = matches.size();
-    for(int i=0;i<M;i++)
+    std::map<int,int>::iterator ite;
+    for(ite=matches.begin();ite!=matches.end();ite++)
     {
-        int idx1 = matches[i].first, idx2 = matches[i].second;
+        int idx1 = ite->first, idx2 = ite->second;
         int obj_idx1 = assign1[idx1], obj_idx2 = assign2[idx2];
 	pair<int,int> obj_match(obj_idx1, obj_idx2);
 	if(votes.count(obj_match))
