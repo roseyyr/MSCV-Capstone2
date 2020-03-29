@@ -23,7 +23,7 @@
 
 #include<opencv2/core/core.hpp>
 #include<opencv2/features2d/features2d.hpp>
-
+#include <opencv2/core/eigen.hpp>
 #include"ORBmatcher.h"
 #include"FrameDrawer.h"
 #include"Converter.h"
@@ -759,6 +759,77 @@ bool sortByVal(const pair<pair<int,int>, int> &a, const pair<pair<int,int>, int>
     return (a.second > b.second);
 }
 
+std::set<int> rotRANSAC(std::vector<Eigen::Quaterniond> &Rs)
+{
+    int max_iter = 20;
+    int L = Rs.size();
+    int rot_th = 0.05;
+    int max_inliers = 1, max_idx = -1;
+    // RANSAC code
+    for(int i=0;i<max_iter;i++)
+    {
+        int idx = rand()%L;
+	int inliers = 0;
+        for(int j=0;j<L;j++)
+	{
+            int dist = 1 - Rs[idx].dot(Rs[j]);
+	    if(dist < rot_th) inliers++; 
+	}
+	if(inliers > max_inliers)
+	{
+            max_inliers = inliers;
+	    max_idx = idx;
+	}
+    }
+    
+    std::set<int> inlier_idx;
+    for(int i=0;i<L;i++)
+    {
+        int dist = 1 - Rs[max_idx].dot(Rs[i]);
+        if(dist < rot_th) 
+	{
+	    inlier_idx.insert(i);
+	}
+    }
+    return inlier_idx;
+
+}
+
+std::set<int> transRANSAC(std::vector<cv::Mat> &Ts)
+{
+    int max_iter = 20;
+    int L = Ts.size();
+    int trans_th = 0.05;
+    int max_inliers = 1, max_idx = -1;
+    // RANSAC code
+    for(int i=0;i<max_iter;i++)
+    {
+        int idx = rand()%L;
+        int inliers = 0;
+        for(int j=0;j<L;j++)
+        {
+            int dist = cv::norm(Ts[idx] - Ts[j]);
+            if(dist < trans_th) inliers++;
+        }
+        if(inliers > max_inliers)
+        {
+            max_inliers = inliers;
+            max_idx = idx;
+        }
+    }
+
+    std::set<int> inlier_idx;
+    for(int i=0;i<L;i++)
+    {
+        int dist = cv::norm(Ts[max_idx] - Ts[i]);
+        if(dist < trans_th)
+        {
+            inlier_idx.insert(i);
+        }
+    }
+    return inlier_idx;
+
+}
 
 bool Tracking::ObjectTrackReferenceKeyFrame()
 {
@@ -831,7 +902,8 @@ bool Tracking::ObjectTrackReferenceKeyFrame()
 
     // Compute the pose from each object match
     std::set<int> used1, used2;
-    vector<cv::Mat> poses;
+    vector<Eigen::Quaterniond> Rs;
+    vector<cv::Mat> Ts;
     cv::Mat pose;
     int L = vec.size();
     for(int i=0;i<L;i++)
@@ -842,13 +914,22 @@ bool Tracking::ObjectTrackReferenceKeyFrame()
         if(!used1.count(obj_idx1) && !used2.count(obj_idx2))
         {
             Optimizer::ObjectPoseOptimization(&mCurrentFrame,objmap[obj_idx1],pose);
-            poses.push_back(pose.clone());
+	    cv::Mat rot_mat = pose(cv::Rect(0,0,3,3)).clone();
+            cv::Mat trans_mat = pose(cv::Rect(3,0,1,3)).clone();
+	    Eigen::Matrix3d eigen_mat;
+	    cv2eigen(rot_mat,eigen_mat);
+	    Eigen::Quaterniond quat(eigen_mat);
+	    Rs.push_back(quat);
+            Ts.push_back(trans_mat);
         }
     }
 
     // RANSAC to pick the majority
-
-    // cast away points belong to the moving objects
+    std::set<int> s1 = rotRANSAC(Rs);
+    std::set<int> s2 = transRANSAC(Ts);
+    std::vector<int> inliers;
+    std::set_intersection(s1.begin(),s1.end(),s2.begin(),s2.end(),std::back_inserter(inliers));
+    // TODO:cast away points belong to the moving objects
 
     Optimizer::PoseOptimization(&mCurrentFrame);
 
