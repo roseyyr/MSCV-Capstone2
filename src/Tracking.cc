@@ -306,13 +306,13 @@ void Tracking::Track()
 
                 if(mVelocity.empty() || mCurrentFrame.mnId<mnLastRelocFrameId+2)
                 {
-                    bOK = TrackReferenceKeyFrame();
+                    bOK = ObjectTrackReferenceKeyFrame();
                 }
                 else
                 {
-                    bOK = TrackWithMotionModel();
+                    bOK = ObjectTrackWithMotionModel();
                     if(!bOK)
-                        bOK = TrackReferenceKeyFrame();
+                        bOK = ObjectTrackReferenceKeyFrame();
                 }
             }
             else
@@ -336,11 +336,11 @@ void Tracking::Track()
 
                     if(!mVelocity.empty())
                     {
-                        bOK = TrackWithMotionModel();
+                        bOK = ObjectTrackWithMotionModel();
                     }
                     else
                     {
-                        bOK = TrackReferenceKeyFrame();
+                        bOK = ObjectTrackReferenceKeyFrame();
                     }
                 }
                 else
@@ -358,7 +358,7 @@ void Tracking::Track()
                     cv::Mat TcwMM;
                     if(!mVelocity.empty())
                     {
-                        bOKMM = TrackWithMotionModel();
+                        bOKMM = ObjectTrackWithMotionModel();
                         vpMPsMM = mCurrentFrame.mvpMapPoints;
                         vbOutMM = mCurrentFrame.mvbOutlier;
                         TcwMM = mCurrentFrame.mTcw.clone();
@@ -763,7 +763,7 @@ std::set<int> rotRANSAC(std::vector<Eigen::Quaterniond> &Rs)
 {
     int max_iter = 20;
     int L = Rs.size();
-    int rot_th = 0.05;
+    double rot_th = 0.05;
     int max_inliers = 1, max_idx = -1;
     // RANSAC code
     for(int i=0;i<max_iter;i++)
@@ -772,7 +772,7 @@ std::set<int> rotRANSAC(std::vector<Eigen::Quaterniond> &Rs)
 	int inliers = 0;
         for(int j=0;j<L;j++)
 	{
-            int dist = 1 - Rs[idx].dot(Rs[j]);
+            double dist = 1 - Rs[idx].dot(Rs[j]);
 	    if(dist < rot_th) inliers++; 
 	}
 	if(inliers > max_inliers)
@@ -785,7 +785,7 @@ std::set<int> rotRANSAC(std::vector<Eigen::Quaterniond> &Rs)
     std::set<int> inlier_idx;
     for(int i=0;i<L;i++)
     {
-        int dist = 1 - Rs[max_idx].dot(Rs[i]);
+        double dist = 1 - Rs[max_idx].dot(Rs[i]);
         if(dist < rot_th) 
 	{
 	    inlier_idx.insert(i);
@@ -799,7 +799,7 @@ std::set<int> transRANSAC(std::vector<cv::Mat> &Ts)
 {
     int max_iter = 20;
     int L = Ts.size();
-    int trans_th = 0.05;
+    double trans_th = 0.05;
     int max_inliers = 1, max_idx = -1;
     // RANSAC code
     for(int i=0;i<max_iter;i++)
@@ -808,7 +808,7 @@ std::set<int> transRANSAC(std::vector<cv::Mat> &Ts)
         int inliers = 0;
         for(int j=0;j<L;j++)
         {
-            int dist = cv::norm(Ts[idx] - Ts[j]);
+            double dist = cv::norm(Ts[idx] - Ts[j]);
             if(dist < trans_th) inliers++;
         }
         if(inliers > max_inliers)
@@ -817,16 +817,31 @@ std::set<int> transRANSAC(std::vector<cv::Mat> &Ts)
             max_idx = idx;
         }
     }
+    // Compute avg for all inliers
+    cv::Mat avg = cv::Mat::zeros(cv::Size(1,3),CV_64FC1);
+    int cnt = 0;
+    for(int i=0;i<L;i++)
+    {
+        double dist = cv::norm(Ts[max_idx] - Ts[i]);
+        if(dist < trans_th)
+        {
+            avg = avg + Ts[i];
+	    cnt++;
+        }
+    }
+    avg = avg / cnt; 
 
+    // Select the inliers
     std::set<int> inlier_idx;
     for(int i=0;i<L;i++)
     {
-        int dist = cv::norm(Ts[max_idx] - Ts[i]);
+        double dist = cv::norm(avg - Ts[i]);
         if(dist < trans_th)
         {
             inlier_idx.insert(i);
         }
     }
+
     return inlier_idx;
 
 }
@@ -873,8 +888,8 @@ bool Tracking::ObjectTrackReferenceKeyFrame()
     std::map<int,int> assign2;
     for(int i=0;i<mLastFrame.N;i++)
     {
-        int x = (int)mLastFrame.mvKeysUn[i].pt.x;
-        int y = (int)mLastFrame.mvKeysUn[i].pt.y;
+	int x = (int)mpReferenceKF->mvKeysUn[i].pt.x;
+        int y = (int)mpReferenceKF->mvKeysUn[i].pt.y;
         int obj_idx = mLastFrame.seg_mask.at<int>(y,x);
         assign2[i] = obj_idx;
     }
@@ -916,21 +931,46 @@ bool Tracking::ObjectTrackReferenceKeyFrame()
             Optimizer::ObjectPoseOptimization(&mCurrentFrame,objmap[obj_idx1],pose);
 	    cv::Mat rot_mat = pose(cv::Rect(0,0,3,3)).clone();
             cv::Mat trans_mat = pose(cv::Rect(3,0,1,3)).clone();
+
 	    Eigen::Matrix3d eigen_mat;
 	    cv2eigen(rot_mat,eigen_mat);
 	    Eigen::Quaterniond quat(eigen_mat);
+
 	    Rs.push_back(quat);
             Ts.push_back(trans_mat);
+
+	    used1.insert(obj_idx1);
+	    used2.insert(obj_idx2);
         }
     }
 
     // RANSAC to pick the majority
     std::set<int> s1 = rotRANSAC(Rs);
     std::set<int> s2 = transRANSAC(Ts);
-    std::vector<int> inliers;
-    std::set_intersection(s1.begin(),s1.end(),s2.begin(),s2.end(),std::back_inserter(inliers));
-    // TODO:cast away points belong to the moving objects
+    std::vector<int> inliers_vec;
+    std::set_intersection(s1.begin(),s1.end(),s2.begin(),s2.end(),std::back_inserter(inliers_vec));
+    std::set<int> inliers(inliers_vec.begin(),inliers_vec.end());
+    // Cast away points belong to the moving objects
+    std::vector<cv::KeyPoint> static_mvKeysUn;
+    std::vector<MapPoint*> static_mvpMapPoints;
+    std::vector<bool> static_mvbOutlier;
+    int cnt = 0;
+    for(int i=0;i<mCurrentFrame.N;i++)
+    {
+        if(inliers.count(assign1[i]))
+	{
+	    static_mvKeysUn.push_back(mCurrentFrame.mvKeysUn[i]);
+	    static_mvpMapPoints.push_back(mCurrentFrame.mvpMapPoints[i]);
+	    static_mvbOutlier.push_back(mCurrentFrame.mvbOutlier[i]);
+	    cnt++;
+	}
+    }
+    mCurrentFrame.mvKeysUn = static_mvKeysUn;
+    mCurrentFrame.mvpMapPoints = static_mvpMapPoints;
+    mCurrentFrame.mvbOutlier = static_mvbOutlier;
+    mCurrentFrame.N = cnt;
 
+    // Use all the static features to do optimization
     Optimizer::PoseOptimization(&mCurrentFrame);
 
     // Discard outliers
@@ -1152,28 +1192,61 @@ bool Tracking::ObjectTrackWithMotionModel()
 
     // Compute the pose from each object match
     std::set<int> used1, used2;
-    vector<cv::Mat> poses;
+    vector<Eigen::Quaterniond> Rs;
+    vector<cv::Mat> Ts;
     cv::Mat pose;
     int L = vec.size();
     for(int i=0;i<L;i++)
     {
         int vote = vec[i].second;
-	if(vote < 10) break;
-	int obj_idx1 = vec[i].first.first, obj_idx2 = vec[i].first.second;
-	if(!used1.count(obj_idx1) && !used2.count(obj_idx2))
-	{
+        if(vote < 10) break;
+        int obj_idx1 = vec[i].first.first, obj_idx2 = vec[i].first.second;
+        if(!used1.count(obj_idx1) && !used2.count(obj_idx2))
+        {
             Optimizer::ObjectPoseOptimization(&mCurrentFrame,objmap[obj_idx1],pose);
-            poses.push_back(pose.clone());
-	}
+            cv::Mat rot_mat = pose(cv::Rect(0,0,3,3)).clone();
+            cv::Mat trans_mat = pose(cv::Rect(3,0,1,3)).clone();
+
+            Eigen::Matrix3d eigen_mat;
+            cv2eigen(rot_mat,eigen_mat);
+            Eigen::Quaterniond quat(eigen_mat);
+
+            Rs.push_back(quat);
+            Ts.push_back(trans_mat);
+
+            used1.insert(obj_idx1);
+            used2.insert(obj_idx2);
+        }
     }
 
     // RANSAC to pick the majority
+    std::set<int> s1 = rotRANSAC(Rs);
+    std::set<int> s2 = transRANSAC(Ts);
+    std::vector<int> inliers_vec;
+    std::set_intersection(s1.begin(),s1.end(),s2.begin(),s2.end(),std::back_inserter(inliers_vec));
+    std::set<int> inliers(inliers_vec.begin(),inliers_vec.end());
 
-    // cast away points on moving objects
+    // Cast away points belong to the moving objects
+    std::vector<cv::KeyPoint> static_mvKeysUn;
+    std::vector<MapPoint*> static_mvpMapPoints;
+    std::vector<bool> static_mvbOutlier;
+    int cnt = 0;
+    for(int i=0;i<mCurrentFrame.N;i++)
+    {
+        if(inliers.count(assign1[i]))
+        {
+            static_mvKeysUn.push_back(mCurrentFrame.mvKeysUn[i]);
+            static_mvpMapPoints.push_back(mCurrentFrame.mvpMapPoints[i]);
+            static_mvbOutlier.push_back(mCurrentFrame.mvbOutlier[i]);
+            cnt++;
+        }
+    }
+    mCurrentFrame.mvKeysUn = static_mvKeysUn;
+    mCurrentFrame.mvpMapPoints = static_mvpMapPoints;
+    mCurrentFrame.mvbOutlier = static_mvbOutlier;
+    mCurrentFrame.N = cnt;
 
-    
-
-    // Optimize frame pose with all matches
+    // Optimize frame pose with all static features
     Optimizer::PoseOptimization(&mCurrentFrame);
 
     // Discard outliers
