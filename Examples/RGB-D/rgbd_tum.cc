@@ -100,7 +100,7 @@ int main(int argc, char **argv)
 #endif
         //cout<<"before tracking..."<<endl;
         // Pass the image to the SLAM system
-        SLAM.TrackRGBD(imRGB,imD,tframe,mask);
+        SLAM.ObjectTrackRGBD(imRGB,imD,tframe,mask);
 	//cout<<"after tracking..."<<endl;
 
 #ifdef COMPILEDWITHC11

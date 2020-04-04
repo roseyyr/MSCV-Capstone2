@@ -238,7 +238,7 @@ cv::Mat Tracking::ObjectGrabImageRGBD(const cv::Mat &imRGB,const cv::Mat &imD, c
 {
     mImGray = imRGB;
     cv::Mat imDepth = imD;
-
+    cout<<"call ObjectGradImageRGBD"<<endl;
     if(mImGray.channels()==3)
     {
         if(mbRGB)
@@ -296,6 +296,7 @@ cv::Mat Tracking::GrabImageMonocular(const cv::Mat &im, const double &timestamp)
 
 void Tracking::Track()
 {
+    cout<<"call Track"<<endl;
     if(mState==NO_IMAGES_YET)
     {
         mState = NOT_INITIALIZED;
@@ -771,7 +772,6 @@ void Tracking::CheckReplacedInLastFrame()
     for(int i =0; i<mLastFrame.N; i++)
     {
         MapPoint* pMP = mLastFrame.mvpMapPoints[i];
-
         if(pMP)
         {
             MapPoint* pRep = pMP->GetReplaced();
@@ -794,7 +794,7 @@ std::set<int> rotRANSAC(std::vector<Eigen::Quaterniond> &Rs)
     int max_iter = 20;
     int L = Rs.size();
     double rot_th = 0.05;
-    int max_inliers = 1, max_idx = -1;
+    int max_inliers = 0, max_idx = -1;
     // RANSAC code
     for(int i=0;i<max_iter;i++)
     {
@@ -802,8 +802,8 @@ std::set<int> rotRANSAC(std::vector<Eigen::Quaterniond> &Rs)
 	int inliers = 0;
         for(int j=0;j<L;j++)
 	{
-            double dist = 1 - Rs[idx].dot(Rs[j]);
-	    if(dist < rot_th) inliers++; 
+	    double dist = 1.0 - (Rs[idx].w()*Rs[j].w()+Rs[idx].x()*Rs[j].x()+Rs[idx].y()*Rs[j].y()+Rs[idx].z()*Rs[j].z());
+            if(dist < rot_th) inliers++; 
 	}
 	if(inliers > max_inliers)
 	{
@@ -811,11 +811,10 @@ std::set<int> rotRANSAC(std::vector<Eigen::Quaterniond> &Rs)
 	    max_idx = idx;
 	}
     }
-    
     std::set<int> inlier_idx;
     for(int i=0;i<L;i++)
     {
-        double dist = 1 - Rs[max_idx].dot(Rs[i]);
+        double dist =  1.0 - (Rs[max_idx].w()*Rs[i].w()+Rs[max_idx].x()*Rs[i].x()+Rs[max_idx].y()*Rs[i].y()+Rs[max_idx].z()*Rs[i].z());
         if(dist < rot_th) 
 	{
 	    inlier_idx.insert(i);
@@ -830,7 +829,7 @@ std::set<int> transRANSAC(std::vector<cv::Mat> &Ts)
     int max_iter = 20;
     int L = Ts.size();
     double trans_th = 0.05;
-    int max_inliers = 1, max_idx = -1;
+    int max_inliers = 0, max_idx = -1;
     // RANSAC code
     for(int i=0;i<max_iter;i++)
     {
@@ -848,7 +847,7 @@ std::set<int> transRANSAC(std::vector<cv::Mat> &Ts)
         }
     }
     // Compute avg for all inliers
-    cv::Mat avg = cv::Mat::zeros(cv::Size(1,3),CV_64FC1);
+    cv::Mat avg(3,1,CV_32F,0.0);
     int cnt = 0;
     for(int i=0;i<L;i++)
     {
@@ -859,7 +858,7 @@ std::set<int> transRANSAC(std::vector<cv::Mat> &Ts)
 	    cnt++;
         }
     }
-    avg = avg / cnt; 
+    avg = avg / (float)cnt; 
 
     // Select the inliers
     std::set<int> inlier_idx;
@@ -878,6 +877,8 @@ std::set<int> transRANSAC(std::vector<cv::Mat> &Ts)
 
 bool Tracking::ObjectTrackReferenceKeyFrame()
 {
+
+    cout<<"call ObjectTrackingReferenceKeyFrame"<<endl;
     // Compute Bag of Words vector
     mCurrentFrame.ComputeBoW();
 
@@ -894,8 +895,8 @@ bool Tracking::ObjectTrackReferenceKeyFrame()
 
     mCurrentFrame.mvpMapPoints = vpMapPointMatches;
     mCurrentFrame.SetPose(mLastFrame.mTcw);
-
     // Connect the features to objects
+    cout<<"before feature assignment"<<endl;
     std::map<int,std::vector<int>> objmap;
     std::map<int,int> assign1;
     for(int i=0;i<mCurrentFrame.N;i++)
@@ -914,13 +915,12 @@ bool Tracking::ObjectTrackReferenceKeyFrame()
             objmap[obj_idx] = feature_indices;
         }
     }
-
     std::map<int,int> assign2;
     for(int i=0;i<mLastFrame.N;i++)
     {
 	int x = (int)mpReferenceKF->mvKeysUn[i].pt.x;
         int y = (int)mpReferenceKF->mvKeysUn[i].pt.y;
-        int obj_idx = mLastFrame.seg_mask.at<int>(y,x);
+        int obj_idx = mpReferenceKF->seg_mask.at<int>(y,x);
         assign2[i] = obj_idx;
     }
     // Compute the votes
@@ -944,7 +944,6 @@ bool Tracking::ObjectTrackReferenceKeyFrame()
     // Sort the votes in descending order
     vector<pair<pair<int,int>,int>> vec(votes.begin(),votes.end());
     sort(vec.begin(),vec.end(),sortByVal);
-
     // Compute the pose from each object match
     std::set<int> used1, used2;
     vector<Eigen::Quaterniond> Rs;
@@ -958,10 +957,10 @@ bool Tracking::ObjectTrackReferenceKeyFrame()
         int obj_idx1 = vec[i].first.first, obj_idx2 = vec[i].first.second;
         if(!used1.count(obj_idx1) && !used2.count(obj_idx2))
         {
+	    cout<<"find match:"<<obj_idx1<<" "<<obj_idx2<<endl;
             Optimizer::ObjectPoseOptimization(&mCurrentFrame,objmap[obj_idx1],pose);
 	    cv::Mat rot_mat = pose(cv::Rect(0,0,3,3)).clone();
             cv::Mat trans_mat = pose(cv::Rect(3,0,1,3)).clone();
-
 	    Eigen::Matrix3d eigen_mat;
 	    cv2eigen(rot_mat,eigen_mat);
 	    Eigen::Quaterniond quat(eigen_mat);
@@ -973,57 +972,78 @@ bool Tracking::ObjectTrackReferenceKeyFrame()
 	    used2.insert(obj_idx2);
         }
     }
-
     // RANSAC to pick the majority
     std::set<int> s1 = rotRANSAC(Rs);
     std::set<int> s2 = transRANSAC(Ts);
     std::vector<int> inliers_vec;
     std::set_intersection(s1.begin(),s1.end(),s2.begin(),s2.end(),std::back_inserter(inliers_vec));
-    std::set<int> inliers(inliers_vec.begin(),inliers_vec.end());
+    std::set<int> obj_inliers(inliers_vec.begin(),inliers_vec.end());
+
     // Cast away points belong to the moving objects
-    std::vector<cv::KeyPoint> static_mvKeysUn;
-    std::vector<MapPoint*> static_mvpMapPoints;
-    std::vector<bool> static_mvbOutlier;
-    int cnt = 0;
+    std::vector<int> feature_inliers;
     for(int i=0;i<mCurrentFrame.N;i++)
     {
-        if(inliers.count(assign1[i]))
-	{
-	    static_mvKeysUn.push_back(mCurrentFrame.mvKeysUn[i]);
-	    static_mvpMapPoints.push_back(mCurrentFrame.mvpMapPoints[i]);
-	    static_mvbOutlier.push_back(mCurrentFrame.mvbOutlier[i]);
-	    cnt++;
-	}
-    }
-    mCurrentFrame.mvKeysUn = static_mvKeysUn;
-    mCurrentFrame.mvpMapPoints = static_mvpMapPoints;
-    mCurrentFrame.mvbOutlier = static_mvbOutlier;
-    mCurrentFrame.N = cnt;
-
-    // Use all the static features to do optimization
-    Optimizer::PoseOptimization(&mCurrentFrame);
-
-    // Discard outliers
-    int nmatchesMap = 0;
-    for(int i =0; i<mCurrentFrame.N; i++)
-    {
-        if(mCurrentFrame.mvpMapPoints[i])
+        if(obj_inliers.count(assign1[i]))
         {
-            if(mCurrentFrame.mvbOutlier[i])
-            {
-                MapPoint* pMP = mCurrentFrame.mvpMapPoints[i];
-
-                mCurrentFrame.mvpMapPoints[i]=static_cast<MapPoint*>(NULL);
-                mCurrentFrame.mvbOutlier[i]=false;
-                pMP->mbTrackInView = false;
-                pMP->mnLastFrameSeen = mCurrentFrame.mnId;
-                nmatches--;
-            }
-            else if(mCurrentFrame.mvpMapPoints[i]->Observations()>0)
-                nmatchesMap++;
+            feature_inliers.push_back(i);
         }
     }
+    cout<<"total features:"<<mCurrentFrame.N<<" selected features:"<<feature_inliers.size()<<endl;
 
+    int num_static = feature_inliers.size();
+    int nmatchesMap = 0;
+    if(num_static > 500)
+    {
+        // Optimize frame pose with all static features
+        Optimizer::ObjectPoseOptimization(&mCurrentFrame,feature_inliers,pose);
+        mCurrentFrame.SetPose(pose);
+
+        // Discard outliers
+        for(int i =0; i<mCurrentFrame.N; i++)
+        {
+            if(mCurrentFrame.mvpMapPoints[i])
+            {
+                if(mCurrentFrame.mvbOutlier[i] || obj_inliers.count(assign1[i]))
+                {
+                    MapPoint* pMP = mCurrentFrame.mvpMapPoints[i];
+
+                    mCurrentFrame.mvpMapPoints[i]=static_cast<MapPoint*>(NULL);
+                    mCurrentFrame.mvbOutlier[i]=false;
+                    pMP->mbTrackInView = false;
+                    pMP->mnLastFrameSeen = mCurrentFrame.mnId;
+                    nmatches--;
+                }
+                else if(mCurrentFrame.mvpMapPoints[i]->Observations()>0)
+                    nmatchesMap++;
+            }
+        }
+        cout<<"total matches:"<<nmatchesMap<<endl;
+    }
+    else 
+    {
+        Optimizer::PoseOptimization(&mCurrentFrame);
+
+        // Discard outliers
+        for(int i =0; i<mCurrentFrame.N; i++)
+        {
+            if(mCurrentFrame.mvpMapPoints[i])
+            {
+                if(mCurrentFrame.mvbOutlier[i])
+                {
+                    MapPoint* pMP = mCurrentFrame.mvpMapPoints[i];
+
+                    mCurrentFrame.mvpMapPoints[i]=static_cast<MapPoint*>(NULL);
+                    mCurrentFrame.mvbOutlier[i]=false;
+                    pMP->mbTrackInView = false;
+                    pMP->mnLastFrameSeen = mCurrentFrame.mnId;
+                    nmatches--;
+                }
+                else if(mCurrentFrame.mvpMapPoints[i]->Observations()>0)
+                    nmatchesMap++;
+            }
+        }
+	cout<<"total matches:"<<nmatchesMap<<endl;
+    }
     return nmatchesMap>=10;
 }
 
@@ -1139,6 +1159,7 @@ void Tracking::UpdateLastFrame()
 
 bool Tracking::ObjectTrackWithMotionModel()
 {
+    cout<<"call ObjectTrackWithMotionModel"<<endl;
     ORBmatcher matcher(0.9,true);
 
     // Update last frame pose according to its reference keyframe
@@ -1187,8 +1208,7 @@ bool Tracking::ObjectTrackWithMotionModel()
 	    vector<int> feature_indices = {i};
 	    objmap[obj_idx] = feature_indices;
 	} 
-    }    
-
+    }
     std::map<int,int> assign2;
     for(int i=0;i<mLastFrame.N;i++)
     {
@@ -1226,6 +1246,7 @@ bool Tracking::ObjectTrackWithMotionModel()
     vector<cv::Mat> Ts;
     cv::Mat pose;
     int L = vec.size();
+    cout<<"before compute pose for each object"<<endl;
     for(int i=0;i<L;i++)
     {
         int vote = vec[i].second;
@@ -1233,6 +1254,7 @@ bool Tracking::ObjectTrackWithMotionModel()
         int obj_idx1 = vec[i].first.first, obj_idx2 = vec[i].first.second;
         if(!used1.count(obj_idx1) && !used2.count(obj_idx2))
         {
+	    cout<<"find object match"<<obj_idx1<<" "<<obj_idx2<<endl;
             Optimizer::ObjectPoseOptimization(&mCurrentFrame,objmap[obj_idx1],pose);
             cv::Mat rot_mat = pose(cv::Rect(0,0,3,3)).clone();
             cv::Mat trans_mat = pose(cv::Rect(3,0,1,3)).clone();
@@ -1254,58 +1276,85 @@ bool Tracking::ObjectTrackWithMotionModel()
     std::set<int> s2 = transRANSAC(Ts);
     std::vector<int> inliers_vec;
     std::set_intersection(s1.begin(),s1.end(),s2.begin(),s2.end(),std::back_inserter(inliers_vec));
-    std::set<int> inliers(inliers_vec.begin(),inliers_vec.end());
+    std::set<int> obj_inliers(inliers_vec.begin(),inliers_vec.end());
 
     // Cast away points belong to the moving objects
-    std::vector<cv::KeyPoint> static_mvKeysUn;
-    std::vector<MapPoint*> static_mvpMapPoints;
-    std::vector<bool> static_mvbOutlier;
-    int cnt = 0;
+    std::vector<int> feature_inliers;
     for(int i=0;i<mCurrentFrame.N;i++)
     {
-        if(inliers.count(assign1[i]))
+        if(obj_inliers.count(assign1[i]))
         {
-            static_mvKeysUn.push_back(mCurrentFrame.mvKeysUn[i]);
-            static_mvpMapPoints.push_back(mCurrentFrame.mvpMapPoints[i]);
-            static_mvbOutlier.push_back(mCurrentFrame.mvbOutlier[i]);
-            cnt++;
+            feature_inliers.push_back(i);
         }
     }
-    mCurrentFrame.mvKeysUn = static_mvKeysUn;
-    mCurrentFrame.mvpMapPoints = static_mvpMapPoints;
-    mCurrentFrame.mvbOutlier = static_mvbOutlier;
-    mCurrentFrame.N = cnt;
-
-    // Optimize frame pose with all static features
-    Optimizer::PoseOptimization(&mCurrentFrame);
-
-    // Discard outliers
+    cout<<"total features:"<<mCurrentFrame.N<<" selected features:"<<feature_inliers.size()<<endl;
+    
+    int num_static = feature_inliers.size();
     int nmatchesMap = 0;
-    for(int i =0; i<mCurrentFrame.N; i++)
+    if(num_static > 500)
     {
-        if(mCurrentFrame.mvpMapPoints[i])
+        // Optimize frame pose with all static features
+        Optimizer::ObjectPoseOptimization(&mCurrentFrame,feature_inliers,pose);
+        mCurrentFrame.SetPose(pose);
+        // Discard outliers
+        for(int i =0; i<mCurrentFrame.N; i++)
         {
-            if(mCurrentFrame.mvbOutlier[i])
+            if(mCurrentFrame.mvpMapPoints[i])
             {
-                MapPoint* pMP = mCurrentFrame.mvpMapPoints[i];
+                if(mCurrentFrame.mvbOutlier[i] || obj_inliers.count(assign1[i]))
+                {
+                    MapPoint* pMP = mCurrentFrame.mvpMapPoints[i];
 
-                mCurrentFrame.mvpMapPoints[i]=static_cast<MapPoint*>(NULL);
-                mCurrentFrame.mvbOutlier[i]=false;
-                pMP->mbTrackInView = false;
-                pMP->mnLastFrameSeen = mCurrentFrame.mnId;
-                nmatches--;
+                    mCurrentFrame.mvpMapPoints[i]=static_cast<MapPoint*>(NULL);
+                    mCurrentFrame.mvbOutlier[i]=false;
+                    pMP->mbTrackInView = false;
+                    pMP->mnLastFrameSeen = mCurrentFrame.mnId;
+                    nmatches--;
+                }
+                else if(mCurrentFrame.mvpMapPoints[i]->Observations()>0)
+                    nmatchesMap++;
             }
-            else if(mCurrentFrame.mvpMapPoints[i]->Observations()>0)
-                nmatchesMap++;
+        } 
+
+        if(mbOnlyTracking)
+        {
+            mbVO = nmatchesMap<10;
+            return nmatches>20;
+        }
+    }
+    else
+    {
+        // Optimize frame pose with all matches
+        Optimizer::PoseOptimization(&mCurrentFrame);
+
+        // Discard outliers
+        for(int i =0; i<mCurrentFrame.N; i++)
+        {
+            if(mCurrentFrame.mvpMapPoints[i])
+            {
+                if(mCurrentFrame.mvbOutlier[i])
+                {
+                    MapPoint* pMP = mCurrentFrame.mvpMapPoints[i];
+
+                    mCurrentFrame.mvpMapPoints[i]=static_cast<MapPoint*>(NULL);
+                    mCurrentFrame.mvbOutlier[i]=false;
+                    pMP->mbTrackInView = false;
+                    pMP->mnLastFrameSeen = mCurrentFrame.mnId;
+                    nmatches--;
+                }
+                else if(mCurrentFrame.mvpMapPoints[i]->Observations()>0)
+                    nmatchesMap++;
+            }
+        }
+    	
+        if(mbOnlyTracking)
+        {
+            mbVO = nmatchesMap<10;
+            return nmatches>20;
         }
     }
 
-    if(mbOnlyTracking)
-    {
-        mbVO = nmatchesMap<10;
-        return nmatches>20;
-    }
-
+    cout<<"total matches:"<<nmatchesMap<<endl;
     return nmatchesMap>=10;
 }
 
