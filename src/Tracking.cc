@@ -896,33 +896,9 @@ bool Tracking::ObjectTrackReferenceKeyFrame()
     mCurrentFrame.mvpMapPoints = vpMapPointMatches;
     mCurrentFrame.SetPose(mLastFrame.mTcw);
     // Connect the features to objects
-    cout<<"before feature assignment"<<endl;
-    std::map<int,std::vector<int>> objmap;
-    std::map<int,int> assign1;
-    for(int i=0;i<mCurrentFrame.N;i++)
-    {
-        int x = (int)mCurrentFrame.mvKeysUn[i].pt.x;
-        int y = (int)mCurrentFrame.mvKeysUn[i].pt.y;
-        int obj_idx = mCurrentFrame.seg_mask.at<int>(y,x);
-        assign1[i] = obj_idx;
-        if(objmap.count(obj_idx))
-        {
-            objmap[obj_idx].push_back(i);
-        }
-        else
-        {
-            vector<int> feature_indices = {i};
-            objmap[obj_idx] = feature_indices;
-        }
-    }
-    std::map<int,int> assign2;
-    for(int i=0;i<mLastFrame.N;i++)
-    {
-	int x = (int)mpReferenceKF->mvKeysUn[i].pt.x;
-        int y = (int)mpReferenceKF->mvKeysUn[i].pt.y;
-        int obj_idx = mpReferenceKF->seg_mask.at<int>(y,x);
-        assign2[i] = obj_idx;
-    }
+    std::map<int,std::vector<int>> objmap = mCurrentFrame.objmap;
+    std::map<int,int> assign1 = mCurrentFrame.assignmap;
+    std::map<int,int> assign2 = mpReferenceKF->assignmap;
     // Compute the votes
     std::map<std::pair<int,int>,int> votes;
     std::map<int,int>::iterator ite;
@@ -1191,33 +1167,9 @@ bool Tracking::ObjectTrackWithMotionModel()
         return false;
 
     // Connect the features to objects
-    std::map<int,std::vector<int>> objmap;
-    std::map<int,int> assign1;
-    for(int i=0;i<mCurrentFrame.N;i++)
-    {
-        int x = (int)mCurrentFrame.mvKeysUn[i].pt.x;
-	int y = (int)mCurrentFrame.mvKeysUn[i].pt.y;
-	int obj_idx = mCurrentFrame.seg_mask.at<int>(y,x);
-	assign1[i] = obj_idx;
-	if(objmap.count(obj_idx))
-	{
-	    objmap[obj_idx].push_back(i);
-	}
-	else
-	{
-	    vector<int> feature_indices = {i};
-	    objmap[obj_idx] = feature_indices;
-	} 
-    }
-    std::map<int,int> assign2;
-    for(int i=0;i<mLastFrame.N;i++)
-    {
-        int x = (int)mLastFrame.mvKeysUn[i].pt.x;
-        int y = (int)mLastFrame.mvKeysUn[i].pt.y;
-        int obj_idx = mLastFrame.seg_mask.at<int>(y,x);
-        assign2[i] = obj_idx;
-    }
-
+    std::map<int,std::vector<int>> objmap = mCurrentFrame.objmap;
+    std::map<int,int> assign1 = mCurrentFrame.assignmap;
+    std::map<int,int> assign2 = mLastFrame.assignmap;
     // Compute the votes 
     std::map<std::pair<int,int>,int> votes;
     std::map<int,int>::iterator ite;
@@ -1246,7 +1198,6 @@ bool Tracking::ObjectTrackWithMotionModel()
     vector<cv::Mat> Ts;
     cv::Mat pose;
     int L = vec.size();
-    cout<<"before compute pose for each object"<<endl;
     for(int i=0;i<L;i++)
     {
         int vote = vec[i].second;

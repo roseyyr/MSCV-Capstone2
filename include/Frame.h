@@ -118,9 +118,6 @@ public:
     static float invfx;
     static float invfy;
     cv::Mat mDistCoef;
-     
-    // Segmentation Mask
-    cv::Mat seg_mask;
 
     // Stereo baseline multiplied by fx.
     float mbf;
@@ -140,6 +137,9 @@ public:
     // In the RGB-D case, RGB images can be distorted.
     std::vector<cv::KeyPoint> mvKeys, mvKeysRight;
     std::vector<cv::KeyPoint> mvKeysUn;
+
+    std::map<int,std::vector<int>> objmap;
+    std::map<int,int> assignmap;
 
     // Corresponding stereo coordinate and depth for each keypoint.
     // "Monocular" keypoints have a negative value.

@@ -173,8 +173,6 @@ public:
     // Pose relative to parent (this is computed when bad flag is activated)
     cv::Mat mTcp;
 
-    // Segmentation Mask
-    cv::Mat seg_mask;
     // Scale
     const int mnScaleLevels;
     const float mfScaleFactor;
@@ -190,6 +188,10 @@ public:
     const int mnMaxY;
     const cv::Mat mK;
 
+    std::map<int,std::vector<int>> objmap;
+    std::map<int,int> assignmap;
+
+
 
     // The following variables need to be accessed trough a mutex to be thread safe.
 protected:
@@ -203,7 +205,6 @@ protected:
 
     // MapPoints associated to keypoints
     std::vector<MapPoint*> mvpMapPoints;
-
     // BoW
     KeyFrameDatabase* mpKeyFrameDB;
     ORBVocabulary* mpORBvocabulary;
