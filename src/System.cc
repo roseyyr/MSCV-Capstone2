@@ -215,7 +215,7 @@ cv::Mat System::TrackRGBD(const cv::Mat &im, const cv::Mat &depthmap, const doub
     return Tcw;
 }
 
-cv::Mat System::ObjectTrackRGBD(const cv::Mat &im, const cv::Mat &depthmap, const double &timestamp, const cv::Mat &mask)
+cv::Mat System::ObjectTrackRGBD(const cv::Mat &im, const cv::Mat &depthmap, const double &timestamp, const cv::Mat &mask, std::set<int>& dynamic_instances)
 {
     if(mSensor!=RGBD)
     {
@@ -257,7 +257,7 @@ cv::Mat System::ObjectTrackRGBD(const cv::Mat &im, const cv::Mat &depthmap, cons
     }
     }
 
-    cv::Mat Tcw = mpTracker->ObjectGrabImageRGBD(im,depthmap,timestamp,mask);
+    cv::Mat Tcw = mpTracker->ObjectGrabImageRGBD(im,depthmap,timestamp,mask,dynamic_instances);
 
     unique_lock<mutex> lock2(mMutexState);
     mTrackingState = mpTracker->mState;

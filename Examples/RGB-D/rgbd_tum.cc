@@ -32,7 +32,9 @@ using namespace std;
 
 void LoadImages(const string &strAssociationFilename, vector<string> &vstrImageFilenamesRGB,
                 vector<string> &vstrImageFilenamesD, vector<double> &vTimestamps);
-void LoadMask(const string &mask_path, cv::Mat &mask);
+set<int> LoadMask(const string &mask_path, cv::Mat &mask);
+
+set<int> dynamic_classes = {0,1,2,3,4,5,6,7,8,14,15,16,17,18,19,20,21,22,23};
 int main(int argc, char **argv)
 {
     if(argc != 5)
@@ -83,7 +85,7 @@ int main(int argc, char **argv)
         imD = cv::imread(string(argv[3])+"/"+vstrImageFilenamesD[ni],CV_LOAD_IMAGE_UNCHANGED);
 	string mask_path = string(argv[3])+"/segment/"+vstrImageFilenamesRGB[ni].substr(4,17)+".msk";
 	//cout<<mask_path<<endl;
-        LoadMask(mask_path,mask);
+	std::set<int> dynamic_instances = LoadMask(mask_path,mask);
         double tframe = vTimestamps[ni];
 
         if(imRGB.empty())
@@ -100,7 +102,7 @@ int main(int argc, char **argv)
 #endif
         //cout<<"before tracking..."<<endl;
         // Pass the image to the SLAM system
-        SLAM.ObjectTrackRGBD(imRGB,imD,tframe,mask);
+        SLAM.ObjectTrackRGBD(imRGB,imD,tframe,mask,dynamic_instances);
 	//cout<<"after tracking..."<<endl;
 
 #ifdef COMPILEDWITHC11
@@ -143,7 +145,7 @@ int main(int argc, char **argv)
 
     return 0;
 }
-void LoadMask(const string &mask_path, cv::Mat &mask)
+std::set<int> LoadMask(const string &mask_path, cv::Mat &mask)
 {
     int H=480,W=640;
     ifstream fMask;
@@ -164,6 +166,43 @@ void LoadMask(const string &mask_path, cv::Mat &mask)
 	}
 	//cout<<endl;
     } 
+    string s;
+    getline(fMask,s);
+    stringstream ss;
+    ss << s;
+    int object_num;
+    ss >> object_num;
+    cout<<"number of instances:"<<object_num<<endl;
+    std::set<int> dynamic_instances;
+    for(int i=0;i<object_num;i++)
+    {
+        string s;
+	getline(fMask,s);
+	stringstream ss;
+	ss << s;
+
+	int instance_id, category_id;
+	int isThing;
+	float score;
+	ss >> instance_id;
+	ss >> isThing;
+	//cout<<"instance id:"<<instance_id<<" isThing:"<<isThing<<endl;
+	if(isThing)
+	{
+	    ss >> category_id;
+	    ss >> score;
+	    if(dynamic_classes.count(category_id))
+	    {
+	        dynamic_instances.insert(instance_id);
+		cout<<"dynamic object:"<<instance_id<<endl;
+	    }
+	}
+	else
+	{
+	    ss >> category_id;
+	}
+    }
+    return dynamic_instances;
 }
 void LoadImages(const string &strAssociationFilename, vector<string> &vstrImageFilenamesRGB,
                 vector<string> &vstrImageFilenamesD, vector<double> &vTimestamps)
@@ -171,7 +210,7 @@ void LoadImages(const string &strAssociationFilename, vector<string> &vstrImageF
     ifstream fAssociation;
     fAssociation.open(strAssociationFilename.c_str());
     while(!fAssociation.eof())
-    {
+    { 
         string s;
         getline(fAssociation,s);
         if(!s.empty())
