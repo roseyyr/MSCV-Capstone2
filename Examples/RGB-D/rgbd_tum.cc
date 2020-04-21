@@ -78,6 +78,8 @@ int main(int argc, char **argv)
     // Main loop
     cv::Mat imRGB, imD;
     cv::Mat mask(480,640,CV_8U);
+    cv::Mat kernel = getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(31,31));
+  
     for(int ni=0; ni<nImages; ni++)
     {
         // Read image and depthmap from file
@@ -86,6 +88,48 @@ int main(int argc, char **argv)
 	string mask_path = string(argv[3])+"/segment/"+vstrImageFilenamesRGB[ni].substr(4,17)+".msk";
 	//cout<<mask_path<<endl;
 	std::set<int> dynamic_instances = LoadMask(mask_path,mask);
+	// Form a mask that discriminate dynamics
+        cv::Mat object_mask = cv::Mat::ones(480,640,CV_8U);
+	int cnt = 0;
+        for(int i=0;i<480;i++)
+        {
+            for(int j=0;j<640;j++)
+            {
+                int label = mask.at<uchar>(i,j);
+                if(dynamic_instances.count(label))
+	        {
+                    object_mask.at<uchar>(i,j) = 1;
+		    cnt ++;
+		}
+                else
+                    object_mask.at<uchar>(i,j) = 0;
+            }
+        }
+	cout<<cnt<<" before dilation cnt"<<endl;
+        // Dilate the mask
+        cv::Mat mask_dilated = cv::Mat::zeros(480,640,CV_8U);
+        cv::dilate(object_mask,mask_dilated,kernel);
+
+        cv::Mat one = cv::Mat::ones(480,640,CV_8U);
+	cv::Mat new_mask = one - mask_dilated;
+        // Erode the mask
+        cv::Mat mask_eroded = new_mask.clone();
+        cv::erode(new_mask,mask_eroded,kernel);
+	cnt = 0;
+        for(int i=0;i<480;i++)
+        {
+            for(int j=0;j<640;j++)
+            {
+                int label = mask_eroded.at<uchar>(i,j);
+                if(label == 0)
+                {
+                    cnt++;
+                }
+            }
+        }
+        cout<<cnt<<" after erosion cnt"<<endl;
+
+
         double tframe = vTimestamps[ni];
 
         if(imRGB.empty())
@@ -102,7 +146,7 @@ int main(int argc, char **argv)
 #endif
         //cout<<"before tracking..."<<endl;
         // Pass the image to the SLAM system
-        SLAM.ObjectTrackRGBD(imRGB,imD,tframe,mask,dynamic_instances);
+        SLAM.ObjectTrackRGBD(imRGB,imD,tframe,mask,dynamic_instances,mask_eroded);
 	//cout<<"after tracking..."<<endl;
 
 #ifdef COMPILEDWITHC11

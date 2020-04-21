@@ -22,7 +22,8 @@
 #include "Converter.h"
 #include "ORBmatcher.h"
 #include <thread>
-
+#include <opencv2/imgproc.hpp>
+#include<opencv2/core/core.hpp>
 namespace ORB_SLAM2
 {
 
@@ -171,7 +172,7 @@ Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeSt
     AssignFeaturesToGrid();
 }
 
-Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth, const cv::Mat &mask, const std::set<int> dynamic_instances)
+Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth, const cv::Mat &mask, const std::set<int> dynamic_instances, const cv::Mat &mask_dynamic)
     :mpORBvocabulary(voc),mpORBextractorLeft(extractor),mpORBextractorRight(static_cast<ORBextractor*>(NULL)),
      mTimeStamp(timeStamp), mK(K.clone()),mDistCoef(distCoef.clone()), mbf(bf), mThDepth(thDepth), mDynamic(dynamic_instances)
 {
@@ -195,6 +196,22 @@ Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeSt
     if(mvKeys.empty())
         return;
 
+    // Remove key points belong to dynamic objects
+    std::vector<cv::KeyPoint> _mvKeys;
+    cv::Mat _mDescriptors;
+    for (size_t i(0); i < mvKeys.size(); ++i)
+    {
+        int val = mask_dynamic.at<uchar>(mvKeys[i].pt.y,mvKeys[i].pt.x);
+        if (val == 1)
+        {
+            _mvKeys.push_back(mvKeys[i]);
+            _mDescriptors.push_back(mDescriptors.row(i));
+        }
+    }
+    cout<<"previous keypoint number:"<<mvKeys.size()<<" current keypoint number:"<<_mvKeys.size()<<endl;
+    mvKeys = _mvKeys;
+    mDescriptors = _mDescriptors;
+    N = mvKeys.size();
     UndistortKeyPoints();
 
     ComputeStereoFromRGBD(imDepth);

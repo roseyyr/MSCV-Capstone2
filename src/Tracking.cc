@@ -234,11 +234,11 @@ cv::Mat Tracking::GrabImageRGBD(const cv::Mat &imRGB,const cv::Mat &imD, const d
     return mCurrentFrame.mTcw.clone();
 }
 
-cv::Mat Tracking::ObjectGrabImageRGBD(const cv::Mat &imRGB,const cv::Mat &imD, const double &timestamp, const cv::Mat &mask, std::set<int>& dynamic_instances)
+cv::Mat Tracking::ObjectGrabImageRGBD(const cv::Mat &imRGB,const cv::Mat &imD, const double &timestamp, const cv::Mat &mask, std::set<int>& dynamic_instances, const cv::Mat &mask_dynamic)
 {
     mImGray = imRGB;
     cv::Mat imDepth = imD;
-    //cout<<"call ObjectGradImageRGBD"<<endl;
+    cout<<"call ObjectGradImageRGBD"<<endl;
     if(mImGray.channels()==3)
     {
         if(mbRGB)
@@ -257,7 +257,7 @@ cv::Mat Tracking::ObjectGrabImageRGBD(const cv::Mat &imRGB,const cv::Mat &imD, c
     if((fabs(mDepthMapFactor-1.0f)>1e-5) || imDepth.type()!=CV_32F)
         imDepth.convertTo(imDepth,CV_32F,mDepthMapFactor);
 
-    mCurrentFrame = Frame(mImGray,imDepth,timestamp,mpORBextractorLeft,mpORBVocabulary,mK,mDistCoef,mbf,mThDepth,mask,dynamic_instances);
+    mCurrentFrame = Frame(mImGray,imDepth,timestamp,mpORBextractorLeft,mpORBVocabulary,mK,mDistCoef,mbf,mThDepth,mask,dynamic_instances,mask_dynamic);
 
     Track();
 
@@ -296,7 +296,7 @@ cv::Mat Tracking::GrabImageMonocular(const cv::Mat &im, const double &timestamp)
 
 void Tracking::Track()
 {
-    //cout<<"call Track"<<endl;
+    cout<<"call Track"<<endl;
     if(mState==NO_IMAGES_YET)
     {
         mState = NOT_INITIALIZED;
@@ -989,13 +989,14 @@ bool Tracking::ObjectTrackReferenceKeyFrame()
 	obj_inliers.insert(obj_idx);
     }
     */
+    /*
     cv::Mat pose;
   
     // Cast away points belong to the moving objects
     std::vector<int> feature_inliers;
     for(int i=0;i<mCurrentFrame.N;i++)
     {
-        if(!mCurrentFrame.mDynamic.count(assign1[i]) && matches.count(i))
+        if(!mCurrentFrame.mDynamic.count(assign1[i]))
         {
             feature_inliers.push_back(i);
         }
@@ -1004,12 +1005,11 @@ bool Tracking::ObjectTrackReferenceKeyFrame()
     cout<<"total matches:"<<nmatches<<" selected matches:"<<feature_inliers.size()<<endl;
     
     int num_static = feature_inliers.size();
+    */
     int nmatchesMap = 0;
     
     // Optimize frame pose with all static features
-    Optimizer::ObjectPoseOptimization(&mCurrentFrame,feature_inliers,pose);
-    mCurrentFrame.SetPose(pose);
-
+    Optimizer::PoseOptimization(&mCurrentFrame);
     // Discard outliers
     for(int i =0; i<mCurrentFrame.N; i++)
     {
@@ -1251,13 +1251,14 @@ bool Tracking::ObjectTrackWithMotionModel()
         obj_inliers.insert(obj_idx);
     }
     */
+    /*
     cv::Mat pose;
     
     // Cast away points belong to the moving objects
     std::vector<int> feature_inliers;
     for(int i=0;i<mCurrentFrame.N;i++)
     {
-        if(!mCurrentFrame.mDynamic.count(assign1[i]) && matches.count(i))
+        if(!mCurrentFrame.mDynamic.count(assign1[i]))
         {
             feature_inliers.push_back(i);
         }
@@ -1266,11 +1267,11 @@ bool Tracking::ObjectTrackWithMotionModel()
     cout<<"total matches:"<<nmatches<<" selected matches:"<<feature_inliers.size()<<endl;
     
     int num_static = feature_inliers.size();
+    */
     int nmatchesMap = 0;
 
     // Optimize frame pose with all static features
-    Optimizer::ObjectPoseOptimization(&mCurrentFrame,feature_inliers,pose);
-    mCurrentFrame.SetPose(pose);
+    Optimizer::PoseOptimization(&mCurrentFrame);
     // Discard outliers
     for(int i =0; i<mCurrentFrame.N; i++)
     {
@@ -1298,6 +1299,7 @@ bool Tracking::ObjectTrackWithMotionModel()
    }
  
    cout<<"total matches:"<<nmatchesMap<<endl;
+
    return nmatchesMap>=10;
 }
 
