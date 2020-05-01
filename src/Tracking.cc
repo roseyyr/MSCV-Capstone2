@@ -793,7 +793,7 @@ std::set<int> rotRANSAC(std::vector<Eigen::Quaterniond> &Rs)
 {
     int max_iter = 20;
     int L = Rs.size();
-    double rot_th = 0.01;
+    double rot_th = 0.05;
     int max_inliers = 0, max_idx = -1;
     // RANSAC code
     for(int i=0;i<max_iter;i++)
@@ -836,7 +836,7 @@ std::set<int> rotRANSAC(std::vector<Eigen::Quaterniond> &Rs)
         if(dist < rot_th) 
 	{
 	    inlier_idx.insert(i);
-	    //cout<<"rotation inlier:"<<i<<" dist:"<<dist<<endl;
+	    cout<<"rotation inlier:"<<i<<" dist:"<<dist<<endl;
 	}
 
     }
@@ -849,7 +849,7 @@ std::set<int> transRANSAC(std::vector<cv::Mat> &Ts)
 {
     int max_iter = 20;
     int L = Ts.size();
-    double trans_th = 0.03;
+    double trans_th = 0.10;
     int max_inliers = 0, max_idx = -1;
     // RANSAC code
     for(int i=0;i<max_iter;i++)
@@ -889,7 +889,7 @@ std::set<int> transRANSAC(std::vector<cv::Mat> &Ts)
         if(dist < trans_th)
         {
             inlier_idx.insert(i);
-	    //cout<<"trans inlier:"<<i<<" dist:"<<dist<<endl;
+	    cout<<"trans inlier:"<<i<<" dist:"<<dist<<endl;
         }
     }
     cout<<"translation inlier size:"<<inlier_idx.size()<<" total size:"<<Ts.size()<<endl;
@@ -918,12 +918,12 @@ bool Tracking::ObjectTrackReferenceKeyFrame()
     mCurrentFrame.mvpMapPoints = vpMapPointMatches;
     mCurrentFrame.SetPose(mLastFrame.mTcw);
 
-    
+    /* 
     // Connect the features to objects
     std::map<int,std::vector<int>> objmap = mCurrentFrame.objmap;
     std::map<int,int> assign1 = mCurrentFrame.assignmap;
     std::map<int,int> assign2 = mpReferenceKF->assignmap;
-    /*
+    
     // Compute the votes
     std::map<std::pair<int,int>,int> votes;
     std::map<int,int>::iterator ite;
@@ -952,6 +952,7 @@ bool Tracking::ObjectTrackReferenceKeyFrame()
     cv::Mat pose;
     int L = vec.size();
     vector<int> obj_indices;
+    vector<bool> _mvbOutlier = mCurrentFrame.mvbOutlier;
     for(int i=0;i<L;i++)
     {
         int vote = vec[i].second;
@@ -976,6 +977,7 @@ bool Tracking::ObjectTrackReferenceKeyFrame()
 	    obj_indices.push_back(obj_idx1);
         }
     }
+    mCurrentFrame.mvbOutlier = _mvbOutlier;
     // RANSAC to pick the majority
     std::set<int> s1 = rotRANSAC(Rs);
     std::set<int> s2 = transRANSAC(Ts);
@@ -988,23 +990,18 @@ bool Tracking::ObjectTrackReferenceKeyFrame()
         int obj_idx = obj_indices[inliers_vec[i]];
 	obj_inliers.insert(obj_idx);
     }
-    */
-    /*
-    cv::Mat pose;
   
     // Cast away points belong to the moving objects
     std::vector<int> feature_inliers;
     for(int i=0;i<mCurrentFrame.N;i++)
     {
-        if(!mCurrentFrame.mDynamic.count(assign1[i]))
+        if(!obj_inliers.count(assign1[i]))
         {
             feature_inliers.push_back(i);
         }
     }
 
-    cout<<"total matches:"<<nmatches<<" selected matches:"<<feature_inliers.size()<<endl;
-    
-    int num_static = feature_inliers.size();
+    cout<<"total features:"<<mCurrentFrame.N<<" selected matches:"<<feature_inliers.size()<<endl;
     */
     int nmatchesMap = 0;
     
@@ -1177,11 +1174,12 @@ bool Tracking::ObjectTrackWithMotionModel()
     if(nmatches<20)
         return false;
     
+    /*
     // Connect the features to objects
     std::map<int,std::vector<int>> objmap = mCurrentFrame.objmap;
     std::map<int,int> assign1 = mCurrentFrame.assignmap;
     std::map<int,int> assign2 = mLastFrame.assignmap;
-    /*
+    
     // Compute the votes 
     std::map<std::pair<int,int>,int> votes;
     std::map<int,int>::iterator ite;
@@ -1211,6 +1209,7 @@ bool Tracking::ObjectTrackWithMotionModel()
     cv::Mat pose;
     int L = vec.size();
     vector<int> obj_indices;
+    vector<bool> _mvbOutlier = mCurrentFrame.mvbOutlier;
     for(int i=0;i<L;i++)
     {
         int vote = vec[i].second;
@@ -1236,7 +1235,7 @@ bool Tracking::ObjectTrackWithMotionModel()
 	    obj_indices.push_back(obj_idx1);
         }
     }
-
+    mCurrentFrame.mvbOutlier = _mvbOutlier;
     // RANSAC to pick the majority
     std::set<int> s1 = rotRANSAC(Rs);
     std::set<int> s2 = transRANSAC(Ts);
@@ -1250,21 +1249,18 @@ bool Tracking::ObjectTrackWithMotionModel()
         cout<<"inlier obj:"<<obj_idx<<endl;
         obj_inliers.insert(obj_idx);
     }
-    */
-    /*
-    cv::Mat pose;
     
     // Cast away points belong to the moving objects
     std::vector<int> feature_inliers;
     for(int i=0;i<mCurrentFrame.N;i++)
     {
-        if(!mCurrentFrame.mDynamic.count(assign1[i]))
+        if(obj_inliers.count(assign1[i]))
         {
             feature_inliers.push_back(i);
         }
     }
     
-    cout<<"total matches:"<<nmatches<<" selected matches:"<<feature_inliers.size()<<endl;
+    cout<<"total features:"<<mCurrentFrame.N<<" selected matches:"<<feature_inliers.size()<<endl;
     
     int num_static = feature_inliers.size();
     */
