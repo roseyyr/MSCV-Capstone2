@@ -245,7 +245,7 @@ Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeSt
     {
         int x = (int)mvKeysUn[i].pt.x;
         int y = (int)mvKeysUn[i].pt.y;
-        int obj_idx = mask.at<int>(y,x);
+        int obj_idx = mask.at<uchar>(y,x);
         assignmap[i] = obj_idx;
         if(objmap.count(obj_idx))
         {

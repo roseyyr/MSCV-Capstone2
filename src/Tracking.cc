@@ -793,7 +793,7 @@ std::set<int> rotRANSAC(std::vector<Eigen::Quaterniond> &Rs)
 {
     int max_iter = 20;
     int L = Rs.size();
-    double rot_th = 0.05;
+    double rot_th = 0.01;
     int max_inliers = 0, max_idx = -1;
     // RANSAC code
     for(int i=0;i<max_iter;i++)
@@ -836,11 +836,11 @@ std::set<int> rotRANSAC(std::vector<Eigen::Quaterniond> &Rs)
         if(dist < rot_th) 
 	{
 	    inlier_idx.insert(i);
-	    cout<<"rotation inlier:"<<i<<" dist:"<<dist<<endl;
+	    //cout<<"rotation inlier:"<<i<<" dist:"<<dist<<endl;
 	}
 
     }
-    cout<<"rotation inlier size:"<<inlier_idx.size()<<" total size:"<<Rs.size()<<endl;
+    //cout<<"rotation inlier size:"<<inlier_idx.size()<<" total size:"<<Rs.size()<<endl;
     return inlier_idx;
 
 }
@@ -889,10 +889,10 @@ std::set<int> transRANSAC(std::vector<cv::Mat> &Ts)
         if(dist < trans_th)
         {
             inlier_idx.insert(i);
-	    cout<<"trans inlier:"<<i<<" dist:"<<dist<<endl;
+            //cout<<"trans inlier:"<<i<<" dist:"<<dist<<endl;
         }
     }
-    cout<<"translation inlier size:"<<inlier_idx.size()<<" total size:"<<Ts.size()<<endl;
+    //cout<<"translation inlier size:"<<inlier_idx.size()<<" total size:"<<Ts.size()<<endl;
     return inlier_idx;
 
 }
@@ -918,7 +918,7 @@ bool Tracking::ObjectTrackReferenceKeyFrame()
     mCurrentFrame.mvpMapPoints = vpMapPointMatches;
     mCurrentFrame.SetPose(mLastFrame.mTcw);
 
-    /* 
+     
     // Connect the features to objects
     std::map<int,std::vector<int>> objmap = mCurrentFrame.objmap;
     std::map<int,int> assign1 = mCurrentFrame.assignmap;
@@ -985,9 +985,10 @@ bool Tracking::ObjectTrackReferenceKeyFrame()
     std::set_intersection(s1.begin(),s1.end(),s2.begin(),s2.end(),std::back_inserter(inliers_vec));
     // Convert to object index
     std::set<int> obj_inliers;
-    for(int i=0;i<inliers_vec.size();i++)
+    for(size_t i=0;i<inliers_vec.size();i++)
     {
         int obj_idx = obj_indices[inliers_vec[i]];
+	//cout<<"inlier obj:"<<i<<endl;
 	obj_inliers.insert(obj_idx);
     }
   
@@ -995,18 +996,18 @@ bool Tracking::ObjectTrackReferenceKeyFrame()
     std::vector<int> feature_inliers;
     for(int i=0;i<mCurrentFrame.N;i++)
     {
-        if(!obj_inliers.count(assign1[i]))
+        if(obj_inliers.count(assign1[i]))
         {
             feature_inliers.push_back(i);
         }
     }
 
     cout<<"total features:"<<mCurrentFrame.N<<" selected matches:"<<feature_inliers.size()<<endl;
-    */
-    int nmatchesMap = 0;
     
+    int nmatchesMap = 0;
     // Optimize frame pose with all static features
-    Optimizer::PoseOptimization(&mCurrentFrame);
+    Optimizer::ObjectPoseOptimization(&mCurrentFrame,feature_inliers,pose);
+    mCurrentFrame.SetPose(pose);
     // Discard outliers
     for(int i =0; i<mCurrentFrame.N; i++)
     {
@@ -1174,7 +1175,7 @@ bool Tracking::ObjectTrackWithMotionModel()
     if(nmatches<20)
         return false;
     
-    /*
+    
     // Connect the features to objects
     std::map<int,std::vector<int>> objmap = mCurrentFrame.objmap;
     std::map<int,int> assign1 = mCurrentFrame.assignmap;
@@ -1243,10 +1244,10 @@ bool Tracking::ObjectTrackWithMotionModel()
     std::set_intersection(s1.begin(),s1.end(),s2.begin(),s2.end(),std::back_inserter(inliers_vec));
     // Convert to object indices
     std::set<int> obj_inliers(inliers_vec.begin(),inliers_vec.end());
-    for(int i=0;i<inliers_vec.size();i++)
+    for(size_t i=0;i<inliers_vec.size();i++)
     {
         int obj_idx = obj_indices[inliers_vec[i]];
-        cout<<"inlier obj:"<<obj_idx<<endl;
+        //cout<<"inlier obj:"<<obj_idx<<endl;
         obj_inliers.insert(obj_idx);
     }
     
@@ -1262,12 +1263,11 @@ bool Tracking::ObjectTrackWithMotionModel()
     
     cout<<"total features:"<<mCurrentFrame.N<<" selected matches:"<<feature_inliers.size()<<endl;
     
-    int num_static = feature_inliers.size();
-    */
     int nmatchesMap = 0;
 
     // Optimize frame pose with all static features
-    Optimizer::PoseOptimization(&mCurrentFrame);
+    Optimizer::ObjectPoseOptimization(&mCurrentFrame,feature_inliers,pose);
+    mCurrentFrame.SetPose(pose);
     // Discard outliers
     for(int i =0; i<mCurrentFrame.N; i++)
     {

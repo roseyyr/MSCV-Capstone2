@@ -85,10 +85,11 @@ int main(int argc, char **argv)
         // Read image and depthmap from file
         imRGB = cv::imread(string(argv[3])+"/"+vstrImageFilenamesRGB[ni],CV_LOAD_IMAGE_UNCHANGED);
         imD = cv::imread(string(argv[3])+"/"+vstrImageFilenamesD[ni],CV_LOAD_IMAGE_UNCHANGED);
-	string mask_path = string(argv[3])+"/dyna_mask/"+vstrImageFilenamesRGB[ni].substr(4,17)+".msk";
+	string mask_path = string(argv[3])+"/segment/"+vstrImageFilenamesRGB[ni].substr(4,17)+".msk";
 	//cout<<mask_path<<endl;
 	std::set<int> dynamic_instances = LoadMask(mask_path,mask);
 	// Form a mask that discriminate dynamics
+	/*
 	cv::Mat object_mask = mask;
 	int cnt = 0;
         for(int i=0;i<480;i++)
@@ -102,8 +103,8 @@ int main(int argc, char **argv)
                 }
             }
         }
-
-	/*
+        */
+	
         cv::Mat object_mask = cv::Mat::ones(480,640,CV_8U);
 	int cnt = 0;
         for(int i=0;i<480;i++)
@@ -120,7 +121,7 @@ int main(int argc, char **argv)
                     object_mask.at<uchar>(i,j) = 0;
             }
         }
-	*/
+	
 	cout<<cnt<<" before dilation cnt"<<endl;
         // Dilate the mask
         cv::Mat mask_dilated = cv::Mat::zeros(480,640,CV_8U);
@@ -224,8 +225,7 @@ std::set<int> LoadMask(const string &mask_path, cv::Mat &mask)
 	}
 	//cout<<endl;
     }
-    std::set<int> dynamic_instances;
-    /* 
+         
     string s;
     getline(fMask,s);
     stringstream ss;
@@ -261,7 +261,7 @@ std::set<int> LoadMask(const string &mask_path, cv::Mat &mask)
 	{
 	    ss >> category_id;
 	}
-    }*/
+    }
     return dynamic_instances;
 }
 void LoadImages(const string &strAssociationFilename, vector<string> &vstrImageFilenamesRGB,
