@@ -1559,7 +1559,7 @@ int ORBmatcher::ObjectSearchByProjection(Frame &CurrentFrame, const Frame &LastF
                 if(bestDist<=TH_HIGH)
                 {
                     CurrentFrame.mvpMapPoints[bestIdx2]=pMP;
-		    matches[bestIdx2] = i;
+                    matches[bestIdx2] = i;
                     nmatches++;
 
                     if(mbCheckOrientation)
@@ -1594,7 +1594,7 @@ int ORBmatcher::ObjectSearchByProjection(Frame &CurrentFrame, const Frame &LastF
                 for(size_t j=0, jend=rotHist[i].size(); j<jend; j++)
                 {
                     CurrentFrame.mvpMapPoints[rotHist[i][j]]=static_cast<MapPoint*>(NULL);
-		    matches.erase(rotHist[i][j]);
+                    matches.erase(rotHist[i][j]);
                     nmatches--;
                 }
             }

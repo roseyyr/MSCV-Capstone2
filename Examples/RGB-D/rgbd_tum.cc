@@ -85,15 +85,14 @@ int main(int argc, char **argv)
         // Read image and depthmap from file
         imRGB = cv::imread(string(argv[3])+"/"+vstrImageFilenamesRGB[ni],CV_LOAD_IMAGE_UNCHANGED);
         imD = cv::imread(string(argv[3])+"/"+vstrImageFilenamesD[ni],CV_LOAD_IMAGE_UNCHANGED);
-	string mask_path = string(argv[3])+"/segment/"+vstrImageFilenamesRGB[ni].substr(4,17)+".msk";
-	//cout<<mask_path<<endl;
-	std::set<int> dynamic_instances = LoadMask(mask_path,mask);
-	// Form a mask that discriminate dynamics
-	/*
-	cv::Mat object_mask = mask;
-	int cnt = 0;
-        for(int i=0;i<480;i++)
-        {
+        string mask_path = string(argv[3])+"/segment/"+vstrImageFilenamesRGB[ni].substr(4,17)+".msk";
+    	std::set<int> dynamic_instances = LoadMask(mask_path,mask);
+	   // Form a mask that discriminate dynamics
+	   /*
+	   cv::Mat object_mask = mask;
+	   int cnt = 0;
+       for(int i=0;i<480;i++)
+       {
             for(int j=0;j<640;j++)
             {
                 int label = mask.at<uchar>(i,j);
@@ -113,25 +112,25 @@ int main(int argc, char **argv)
             {
                 int label = mask.at<uchar>(i,j);
                 if(dynamic_instances.count(label))
-	        {
+                {
                     object_mask.at<uchar>(i,j) = 1;
-		    cnt ++;
-		}
+                    cnt ++;
+                }
                 else
                     object_mask.at<uchar>(i,j) = 0;
             }
         }
-	
-	cout<<cnt<<" before dilation cnt"<<endl;
+
+        cout<<cnt<<" before dilation cnt"<<endl;
         // Dilate the mask
         cv::Mat mask_dilated = cv::Mat::zeros(480,640,CV_8U);
         cv::dilate(object_mask,mask_dilated,kernel);
         cv::Mat one = cv::Mat::ones(480,640,CV_8U);
-	cv::Mat new_mask = one - mask_dilated;
+        cv::Mat new_mask = one - mask_dilated;
         // Erode the mask
         cv::Mat mask_eroded = new_mask.clone();
         cv::erode(new_mask,mask_eroded,kernel);
-	cnt = 0;
+        cnt = 0;
         for(int i=0;i<480;i++)
         {
             for(int j=0;j<640;j++)
@@ -237,30 +236,30 @@ std::set<int> LoadMask(const string &mask_path, cv::Mat &mask)
     for(int i=0;i<object_num;i++)
     {
         string s;
-	getline(fMask,s);
-	stringstream ss;
-	ss << s;
+    	getline(fMask,s);
+	   stringstream ss;
+	   ss << s;
 
-	int instance_id, category_id;
-	int isThing;
-	float score;
-	ss >> instance_id;
-	ss >> isThing;
-	//cout<<"instance id:"<<instance_id<<" isThing:"<<isThing<<endl;
-	if(isThing)
-	{
-	    ss >> category_id;
-	    ss >> score;
-	    if(dynamic_classes.count(category_id))
-	    {
-	        dynamic_instances.insert(instance_id);
-		cout<<"dynamic object:"<<instance_id<<endl;
-	    }
-	}
-	else
-	{
-	    ss >> category_id;
-	}
+	   int instance_id, category_id;
+	   int isThing;
+	   float score;
+	   ss >> instance_id;
+	   ss >> isThing;
+	   //cout<<"instance id:"<<instance_id<<" isThing:"<<isThing<<endl;
+	   if(isThing)
+	   {
+	        ss >> category_id;
+	       ss >> score;
+	       if(dynamic_classes.count(category_id))
+	       {
+	           dynamic_instances.insert(instance_id);
+		      cout<<"dynamic object:"<<instance_id<<endl;
+	       }
+	   }
+	   else
+	   {
+	       ss >> category_id;
+	   }
     }
     return dynamic_instances;
 }

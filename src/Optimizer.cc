@@ -273,16 +273,13 @@ int Optimizer::ObjectPoseOptimization(Frame *pFrame,std::vector<int>& idx_arr,cv
     const float deltaMono = sqrt(5.991);
     const float deltaStereo = sqrt(7.815);
 
-
-    {
     unique_lock<mutex> lock(MapPoint::mGlobalMutex);
-
     for(int idx=0; idx<N; idx++)
     {
-	int i = idx_arr[idx];
-        MapPoint* pMP = pFrame->mvpMapPoints[i];
-        if(pMP)
-        {
+	   int i = idx_arr[idx];
+       MapPoint* pMP = pFrame->mvpMapPoints[i];
+       if(pMP)
+       {
             // Monocular observation
             if(pFrame->mvuRight[i]<0)
             {
@@ -358,7 +355,6 @@ int Optimizer::ObjectPoseOptimization(Frame *pFrame,std::vector<int>& idx_arr,cv
             }
         }
 
-    }
     }
 
 
