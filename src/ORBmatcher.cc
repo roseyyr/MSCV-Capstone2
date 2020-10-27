@@ -1604,10 +1604,10 @@ int ORBmatcher::ObjectSearchByProjection(Frame &CurrentFrame, const Frame &LastF
     return nmatches;
 }
 
-//vector<int> ORBmatcher::CheckProjectionAfterPose(vector<MapPoint*> &prevFrameMapPoints, Frame &CurrentFrame, cv::Mat pose, int obj_index, const float th)
-vector<int> ORBmatcher::CheckProjectionAfterPose(Frame &CurrentFrame, const Frame &LastFrame, int obj_index, const float th, const bool bMono)
+vector<int> ORBmatcher::CheckProjectionAfterPose(Frame &CurrentFrame, const Frame &ReferenceFrame, int obj_idx, std::map<int,int> &matches, const float th, const bool bMono)
 {    
     vector<int> inliers;
+    std::map<int,int> assign1 = CurrentFrame.assignmap;
     // Rotation Histogram (to check rotation consistency)
     vector<int> rotHist[HISTO_LENGTH];
     for(int i=0;i<HISTO_LENGTH;i++)
@@ -1619,95 +1619,49 @@ vector<int> ORBmatcher::CheckProjectionAfterPose(Frame &CurrentFrame, const Fram
 
     const cv::Mat twc = -Rcw.t()*tcw;
 
-    const cv::Mat Rlw = LastFrame.mTcw.rowRange(0,3).colRange(0,3);
-    const cv::Mat tlw = LastFrame.mTcw.rowRange(0,3).col(3);
+    const cv::Mat Rlw = ReferenceFrame.mTcw.rowRange(0,3).colRange(0,3);
+    const cv::Mat tlw = ReferenceFrame.mTcw.rowRange(0,3).col(3);
 
     const cv::Mat tlc = Rlw*twc+tlw;
 
     const bool bForward = tlc.at<float>(2)>CurrentFrame.mb && !bMono;
     const bool bBackward = -tlc.at<float>(2)>CurrentFrame.mb && !bMono;
 
-    std::map<int,int> assign1 = CurrentFrame.assignmap;
-    std::map<int,int> assign2 = LastFrame.assignmap;
-
-
-    for(int i=0; i<LastFrame.N; i++)
+    std::map<int,int>::iterator ite;
+    int nmatches = 0;
+    for(ite=matches.begin();ite!=matches.end();ite++)
     {
-        MapPoint* pMP = LastFrame.mvpMapPoints[i];
+        int idx1 = ite->first;
+        int idx2 = ite->second;
 
-        if(pMP)
+        MapPoint* pMp = ReferenceFrame.mvpMapPoints[idx2];
+        if (pMp)
         {
-            if(!LastFrame.mvbOutlier[i]) 
+            cv::Mat x3dw = pMp->GetWorldPos();
+            cv::Mat x3dc = Rcw*x3dw + tcw;
+
+            const float xc = x3Dc.at<float>(0);
+            const float yc = x3Dc.at<float>(1);
+            const float invzc = 1.0/x3Dc.at<float>(2);
+
+            if(invzc<0)
+                continue;
+
+            float uLastFrame = ReferenceFrame.fx*xc*invzc+CurrentFrame.cx;
+            float vLastFrame = ReferenceFrame.fy*yc*invzc+CurrentFrame.cy;
+
+            float uCurrentFrame = CurrentFrame.mvKeys[idx1].pt.x;
+            float vCurrentFrame = CurrentFrame.mvKeys[idx1].pt.y;
+            int curr_obj = assign1[idx1]
+
+            float dist = sqrt((uLastFrame - uCurrentFrame)*(uLastFrame - uCurrentFrame) +
+            (vLastFrame - vCurrentFrame)*(vLastFrame - vCurrentFrame))
+
+            if (dist < th)
             {
-                // Project
-                cv::Mat x3Dw = pMP->GetWorldPos();
-                cv::Mat x3Dc = Rcw*x3Dw+tcw;
-
-                const float xc = x3Dc.at<float>(0);
-                const float yc = x3Dc.at<float>(1);
-                const float invzc = 1.0/x3Dc.at<float>(2);
-
-                if(invzc<0)
-                    continue;
-
-                float u = CurrentFrame.fx*xc*invzc+CurrentFrame.cx;
-                float v = CurrentFrame.fy*yc*invzc+CurrentFrame.cy;
-                //cout << u << " " << v << '\n';
-
-                if(u<CurrentFrame.mnMinX || u>CurrentFrame.mnMaxX)
-                    continue;
-                if(v<CurrentFrame.mnMinY || v>CurrentFrame.mnMaxY)
-                    continue;
-
-                int nLastOctave = LastFrame.mvKeys[i].octave;
-
-                // Search in a window. Size depends on scale
-                float radius = th*CurrentFrame.mvScaleFactors[nLastOctave];
-
-                vector<size_t> vIndices2;
-
-                if(bForward)
-                    vIndices2 = CurrentFrame.GetFeaturesInArea(u,v, radius, nLastOctave);
-                else if(bBackward)
-                    vIndices2 = CurrentFrame.GetFeaturesInArea(u,v, radius, 0, nLastOctave);
-                else
-                    vIndices2 = CurrentFrame.GetFeaturesInArea(u,v, radius, nLastOctave-1, nLastOctave+1);
-
-                if(vIndices2.empty())
-                    continue;
-
-                const cv::Mat dMP = pMP->GetDescriptor();
-
-                int bestDist = 256;
-                int bestIdx2 = -1;
-
-                for(vector<size_t>::const_iterator vit=vIndices2.begin(), vend=vIndices2.end(); vit!=vend; vit++)
-                {
-                    const size_t i2 = *vit;
-                    if(CurrentFrame.mvpMapPoints[i2])
-                        if(CurrentFrame.mvpMapPoints[i2]->Observations()>0)
-                            continue;
-
-                    if(CurrentFrame.mvuRight[i2]>0)
-                    {
-                        const float ur = u - CurrentFrame.mbf*invzc;
-                        const float er = fabs(ur - CurrentFrame.mvuRight[i2]);
-                    }
-
-                    const cv::Mat &d = CurrentFrame.mDescriptors.row(i2);
-
-                    const int dist = DescriptorDistance(dMP,d);
-
-                    if(dist<bestDist)
-                    {
-                        bestDist=dist;
-                        bestIdx2=i2;
-                    }
-                }
-                if (bestIdx2 != -1 && assign2[bestIdx2] != obj_index)
-                {
-                    inliers.push_back(bestIdx2);
-                }
+                if (curr_obj == obj_idx)
+                nmatches += 1;
+                inliers.push_back(idx2);
             }
         }
     }
