@@ -916,7 +916,7 @@ bool Tracking::ObjectTrackReferenceKeyFrame()
     
     mCurrentFrame.mvpMapPoints = vpMapPointMatches;
     mCurrentFrame.SetPose(mLastFrame.mTcw);
-  
+
     // Connect the features to objects
     std::map<int,std::vector<int>> objmap = mCurrentFrame.objmap;
     std::map<int,int> assign1 = mCurrentFrame.assignmap;
@@ -1480,8 +1480,8 @@ bool Tracking::ObjectTrackWithMotionModel()
     cv::Mat pose;
     int L = vec.size();
     vector<int> obj_indices;
-    vector<bool> _mvbOutlier = mCurrentFrame.mvbOutlier;
-    float thresh_3d = 6.5f;
+    vector<bool> _mvbOutlier = mCurrentFrame.mvbOutlier;=
+    float thresh_3d = 8.0f;
     int max_inliers = 0;
     vector<int> max_inliers_idx;
     for(int i=0;i<L;i++)
@@ -1511,6 +1511,7 @@ bool Tracking::ObjectTrackWithMotionModel()
         }
     }
     cout<<"max inliers: "<<max_inliers<<endl;
+
     if (max_inliers > 100)
     {
     	Optimizer::ObjectPoseOptimization(&mCurrentFrame,max_inliers_idx,pose);
