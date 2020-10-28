@@ -1480,7 +1480,7 @@ bool Tracking::ObjectTrackWithMotionModel()
     cv::Mat pose;
     int L = vec.size();
     vector<int> obj_indices;
-    vector<bool> _mvbOutlier = mCurrentFrame.mvbOutlier;=
+    vector<bool> _mvbOutlier = mCurrentFrame.mvbOutlier;
     float thresh_3d = 8.0f;
     int max_inliers = 0;
     vector<int> max_inliers_idx;
