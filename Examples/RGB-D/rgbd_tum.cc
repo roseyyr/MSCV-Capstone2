@@ -82,6 +82,7 @@ int main(int argc, char **argv)
   
     for(int ni=0; ni<nImages; ni++)
     {
+	cout<<"---------------------"<<ni<<"-----------------"<<endl;
         // Read image and depthmap from file
         imRGB = cv::imread(string(argv[3])+"/"+vstrImageFilenamesRGB[ni],CV_LOAD_IMAGE_UNCHANGED);
         imD = cv::imread(string(argv[3])+"/"+vstrImageFilenamesD[ni],CV_LOAD_IMAGE_UNCHANGED);
@@ -233,6 +234,7 @@ std::set<int> LoadMask(const string &mask_path, cv::Mat &mask)
     ss >> object_num;
     cout<<"number of instances:"<<object_num<<endl;
     std::set<int> dynamic_instances;
+    std::set<int> empty;
     for(int i=0;i<object_num;i++)
     {
         string s;
@@ -261,7 +263,7 @@ std::set<int> LoadMask(const string &mask_path, cv::Mat &mask)
 	       ss >> category_id;
 	   }
     }
-    return dynamic_instances;
+    return empty;
 }
 void LoadImages(const string &strAssociationFilename, vector<string> &vstrImageFilenamesRGB,
                 vector<string> &vstrImageFilenamesD, vector<double> &vTimestamps)

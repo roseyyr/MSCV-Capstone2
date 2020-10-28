@@ -1603,8 +1603,71 @@ int ORBmatcher::ObjectSearchByProjection(Frame &CurrentFrame, const Frame &LastF
 
     return nmatches;
 }
+/*
+vector<int> ORBmatcher::CheckProjectionAfterPose(Frame &CurrentFrame, const KeyFrame *ReferenceFrame, int obj_idx, std::map<int,int> &matches, const float th, const bool bMono)
+{
+    vector<int> inliers;
+    std::map<int,int> assign1 = CurrentFrame.assignmap;
+    // Rotation Histogram (to check rotation consistency)
+    vector<int> rotHist[HISTO_LENGTH];
+    for(int i=0;i<HISTO_LENGTH;i++)
+        rotHist[i].reserve(500);
+    const float factor = 1.0f/HISTO_LENGTH;
 
-vector<int> ORBmatcher::CheckProjectionAfterPose(Frame &CurrentFrame, const Frame &ReferenceFrame, int obj_idx, std::map<int,int> &matches, const float th, const bool bMono)
+    const cv::Mat Rcw = CurrentFrame.mTcw.rowRange(0,3).colRange(0,3);
+    const cv::Mat tcw = CurrentFrame.mTcw.rowRange(0,3).col(3);
+
+    const cv::Mat twc = -Rcw.t()*tcw;
+
+    const cv::Mat Rlw = ReferenceFrame->mTcw.rowRange(0,3).colRange(0,3);
+    const cv::Mat tlw = ReferenceFrame->mTcw.rowRange(0,3).col(3);
+
+    const cv::Mat tlc = Rlw*twc+tlw;
+
+    const bool bForward = tlc.at<float>(2)>CurrentFrame.mb && !bMono;
+    const bool bBackward = -tlc.at<float>(2)>CurrentFrame.mb && !bMono;
+
+    std::map<int,int>::iterator ite;
+    int nmatches = 0;
+    for(ite=matches.begin();ite!=matches.end();ite++)
+    {
+        int idx1 = ite->first;
+        int idx2 = ite->second;
+
+        MapPoint* pMp = ReferenceFrame->mvpMapPoints[idx2];
+        if (pMp)
+        {
+            cv::Mat x3dw = pMp->GetWorldPos();
+            cv::Mat x3dc = Rcw*x3dw + tcw;
+
+            const float xc = x3dc.at<float>(0);
+            const float yc = x3dc.at<float>(1);
+            const float invzc = 1.0/x3dc.at<float>(2);
+
+            if(invzc<0)
+                continue;
+
+            float uLastFrame = ReferenceFrame->fx*xc*invzc+CurrentFrame.cx;
+            float vLastFrame = ReferenceFrame->fy*yc*invzc+CurrentFrame.cy;
+
+            float uCurrentFrame = CurrentFrame.mvKeys[idx1].pt.x;
+            float vCurrentFrame = CurrentFrame.mvKeys[idx1].pt.y;
+            int curr_obj = assign1[idx1];
+
+            float dist = sqrt((uLastFrame - uCurrentFrame)*(uLastFrame - uCurrentFrame) + (vLastFrame - vCurrentFrame)*(vLastFrame - vCurrentFrame));
+            //cout<<uLastFrame<<" "<<vLastFrame<<" "<<uCurrentFrame<<" "<<vCurrentFrame<<" "<<dist<<" "<<th<<endl;
+            if (dist < th)
+            {
+                if (curr_obj == obj_idx)
+                nmatches += 1;
+                inliers.push_back(idx2);
+            }
+        }
+    }
+    return inliers;
+}
+*/
+vector<int> ORBmatcher::CheckProjectionAfterPose(Frame &CurrentFrame, const Frame *ReferenceFrame, int obj_idx, std::map<int,int> &matches, const float th, const bool bMono)
 {    
     vector<int> inliers;
     std::map<int,int> assign1 = CurrentFrame.assignmap;
@@ -1619,8 +1682,8 @@ vector<int> ORBmatcher::CheckProjectionAfterPose(Frame &CurrentFrame, const Fram
 
     const cv::Mat twc = -Rcw.t()*tcw;
 
-    const cv::Mat Rlw = ReferenceFrame.mTcw.rowRange(0,3).colRange(0,3);
-    const cv::Mat tlw = ReferenceFrame.mTcw.rowRange(0,3).col(3);
+    const cv::Mat Rlw = ReferenceFrame->mTcw.rowRange(0,3).colRange(0,3);
+    const cv::Mat tlw = ReferenceFrame->mTcw.rowRange(0,3).col(3);
 
     const cv::Mat tlc = Rlw*twc+tlw;
 
@@ -1634,29 +1697,28 @@ vector<int> ORBmatcher::CheckProjectionAfterPose(Frame &CurrentFrame, const Fram
         int idx1 = ite->first;
         int idx2 = ite->second;
 
-        MapPoint* pMp = ReferenceFrame.mvpMapPoints[idx2];
+        MapPoint* pMp = ReferenceFrame->mvpMapPoints[idx2];
         if (pMp)
         {
             cv::Mat x3dw = pMp->GetWorldPos();
             cv::Mat x3dc = Rcw*x3dw + tcw;
 
-            const float xc = x3Dc.at<float>(0);
-            const float yc = x3Dc.at<float>(1);
-            const float invzc = 1.0/x3Dc.at<float>(2);
+            const float xc = x3dc.at<float>(0);
+            const float yc = x3dc.at<float>(1);
+            const float invzc = 1.0/x3dc.at<float>(2);
 
             if(invzc<0)
                 continue;
 
-            float uLastFrame = ReferenceFrame.fx*xc*invzc+CurrentFrame.cx;
-            float vLastFrame = ReferenceFrame.fy*yc*invzc+CurrentFrame.cy;
+            float uLastFrame = ReferenceFrame->fx*xc*invzc+CurrentFrame.cx;
+            float vLastFrame = ReferenceFrame->fy*yc*invzc+CurrentFrame.cy;
 
             float uCurrentFrame = CurrentFrame.mvKeys[idx1].pt.x;
             float vCurrentFrame = CurrentFrame.mvKeys[idx1].pt.y;
-            int curr_obj = assign1[idx1]
+            int curr_obj = assign1[idx1];
 
-            float dist = sqrt((uLastFrame - uCurrentFrame)*(uLastFrame - uCurrentFrame) +
-            (vLastFrame - vCurrentFrame)*(vLastFrame - vCurrentFrame))
-
+            float dist = sqrt((uLastFrame - uCurrentFrame)*(uLastFrame - uCurrentFrame) + (vLastFrame - vCurrentFrame)*(vLastFrame - vCurrentFrame));
+            //cout<<uLastFrame<<" "<<vLastFrame<<" "<<uCurrentFrame<<" "<<vCurrentFrame<<" "<<dist<<" "<<th<<endl;
             if (dist < th)
             {
                 if (curr_obj == obj_idx)
