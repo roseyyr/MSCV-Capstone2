@@ -950,6 +950,10 @@ bool Tracking::ObjectTrackReferenceKeyFrame()
     int L = vec.size();
     vector<int> obj_indices;
     vector<bool> _mvbOutlier = mCurrentFrame.mvbOutlier;
+    float thresh_3d = 12.0f;
+    int max_inliers = 0;
+    vector<int> max_inliers_idx;
+
     for(int i=0;i<L;i++)
     {
         int vote = vec[i].second;
@@ -963,15 +967,23 @@ bool Tracking::ObjectTrackReferenceKeyFrame()
            cv::Mat rot_mat = pose(cv::Rect(0,0,3,3)).clone();
            cv::Mat trans_mat = pose(cv::Rect(3,0,1,3)).clone();
            Eigen::Matrix3d eigen_mat;
-           cv2eigen(rot_mat,eigen_mat);
-           Eigen::Quaterniond quat(eigen_mat);
-           Rs.push_back(quat);
-           Ts.push_back(trans_mat);
+           //cv2eigen(rot_mat,eigen_mat);
+           //Eigen::Quaterniond quat(eigen_mat);
+           //Rs.push_back(quat);
+           //Ts.push_back(trans_mat);
+	   vector<int> curr_obj_inliers = matcher.CheckProjectionAfterPose(mCurrentFrame, &mLastFrame, obj_idx1, matches, thresh_3d, mSensor==System::MONOCULAR);
+           cout << "Current inliers" << curr_obj_inliers.size() << '\n';
+           if (curr_obj_inliers.size() > max_inliers)
+           {
+                max_inliers = curr_obj_inliers.size();
+                max_inliers_idx = curr_obj_inliers;
+           }
            used1.insert(obj_idx1);
            used2.insert(obj_idx2);
            obj_indices.push_back(obj_idx1);
         }
     }
+    /*
     mCurrentFrame.mvbOutlier = _mvbOutlier;
     // RANSAC to pick the majority
     std::set<int> s1 = rotRANSAC(Rs);
@@ -985,8 +997,7 @@ bool Tracking::ObjectTrackReferenceKeyFrame()
         int obj_idx = obj_indices[inliers_vec[i]];
         //cout<<"inlier obj:"<<i<<endl;
         obj_inliers.insert(obj_idx);
-    }
-  
+    } 
     // Cast away points belong to the moving objects
     std::vector<int> feature_inliers;
     for(int i=0;i<mCurrentFrame.N;i++)
@@ -997,9 +1008,20 @@ bool Tracking::ObjectTrackReferenceKeyFrame()
         }
     }
     cout<<"total features:"<<mCurrentFrame.N<<" selected matches:"<<feature_inliers.size()<<endl;
-    
+*/
+    cout<<"max inliers: "<<max_inliers<<endl;
+
+    if (max_inliers > 100)
+    {
+        Optimizer::ObjectPoseOptimization(&mCurrentFrame,max_inliers_idx,pose);
+        mCurrentFrame.SetPose(pose);
+    }
+    else
+        Optimizer::PoseOptimization(&mCurrentFrame);
+
     int nmatchesMap = 0;
     // Optimize frame pose with all static features
+    /*
     if(feature_inliers.size() > 100)
     {
     	Optimizer::ObjectPoseOptimization(&mCurrentFrame,feature_inliers,pose);
@@ -1007,6 +1029,7 @@ bool Tracking::ObjectTrackReferenceKeyFrame()
     } else
         Optimizer::PoseOptimization(&mCurrentFrame);
     // Discard outliers
+    */
     for(int i =0; i<mCurrentFrame.N; i++)
     {
         if(mCurrentFrame.mvpMapPoints[i])
