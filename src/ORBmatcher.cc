@@ -1603,8 +1603,8 @@ int ORBmatcher::ObjectSearchByProjection(Frame &CurrentFrame, const Frame &LastF
 
     return nmatches;
 }
-/*
-vector<int> ORBmatcher::CheckProjectionAfterPose(Frame &CurrentFrame, const KeyFrame *ReferenceFrame, int obj_idx, std::map<int,int> &matches, const float th, const bool bMono)
+
+vector<int> ORBmatcher::CheckProjectionAfterPose(Frame &CurrentFrame, KeyFrame *ReferenceFrame, int obj_idx, std::map<int,int> &matches, const float th, const bool bMono)
 {
     vector<int> inliers;
     std::map<int,int> assign1 = CurrentFrame.assignmap;
@@ -1619,8 +1619,8 @@ vector<int> ORBmatcher::CheckProjectionAfterPose(Frame &CurrentFrame, const KeyF
 
     const cv::Mat twc = -Rcw.t()*tcw;
 
-    const cv::Mat Rlw = ReferenceFrame->mTcw.rowRange(0,3).colRange(0,3);
-    const cv::Mat tlw = ReferenceFrame->mTcw.rowRange(0,3).col(3);
+    const cv::Mat Rlw = ReferenceFrame->GetPose().rowRange(0,3).colRange(0,3);
+    const cv::Mat tlw = ReferenceFrame->GetPose().rowRange(0,3).col(3);
 
     const cv::Mat tlc = Rlw*twc+tlw;
 
@@ -1629,12 +1629,13 @@ vector<int> ORBmatcher::CheckProjectionAfterPose(Frame &CurrentFrame, const KeyF
 
     std::map<int,int>::iterator ite;
     int nmatches = 0;
+    vector<MapPoint*> mvpMapPoints = ReferenceFrame->GetMapPointMatches();
     for(ite=matches.begin();ite!=matches.end();ite++)
     {
         int idx1 = ite->first;
         int idx2 = ite->second;
 
-        MapPoint* pMp = ReferenceFrame->mvpMapPoints[idx2];
+        MapPoint* pMp = mvpMapPoints[idx2];
         if (pMp)
         {
             cv::Mat x3dw = pMp->GetWorldPos();
@@ -1647,11 +1648,11 @@ vector<int> ORBmatcher::CheckProjectionAfterPose(Frame &CurrentFrame, const KeyF
             if(invzc<0)
                 continue;
 
-            float uLastFrame = ReferenceFrame->fx*xc*invzc+CurrentFrame.cx;
-            float vLastFrame = ReferenceFrame->fy*yc*invzc+CurrentFrame.cy;
+            float uLastFrame = 1.0f*ReferenceFrame->fx*xc*invzc+1.0f*CurrentFrame.cx;
+            float vLastFrame = 1.0f*ReferenceFrame->fy*yc*invzc+1.0f*CurrentFrame.cy;
 
-            float uCurrentFrame = CurrentFrame.mvKeys[idx1].pt.x;
-            float vCurrentFrame = CurrentFrame.mvKeys[idx1].pt.y;
+            float uCurrentFrame = CurrentFrame.mvKeysUn[idx1].pt.x;
+            float vCurrentFrame = CurrentFrame.mvKeysUn[idx1].pt.y;
             int curr_obj = assign1[idx1];
 
             float dist = sqrt((uLastFrame - uCurrentFrame)*(uLastFrame - uCurrentFrame) + (vLastFrame - vCurrentFrame)*(vLastFrame - vCurrentFrame));
@@ -1666,7 +1667,7 @@ vector<int> ORBmatcher::CheckProjectionAfterPose(Frame &CurrentFrame, const KeyF
     }
     return inliers;
 }
-*/
+
 vector<int> ORBmatcher::CheckProjectionAfterPose(Frame &CurrentFrame, const Frame *ReferenceFrame, int obj_idx, std::map<int,int> &matches, const float th, const bool bMono)
 {    
     vector<int> inliers;
@@ -1713,8 +1714,8 @@ vector<int> ORBmatcher::CheckProjectionAfterPose(Frame &CurrentFrame, const Fram
             float uLastFrame = ReferenceFrame->fx*xc*invzc+CurrentFrame.cx;
             float vLastFrame = ReferenceFrame->fy*yc*invzc+CurrentFrame.cy;
 
-            float uCurrentFrame = CurrentFrame.mvKeys[idx1].pt.x;
-            float vCurrentFrame = CurrentFrame.mvKeys[idx1].pt.y;
+            float uCurrentFrame = CurrentFrame.mvKeysUn[idx1].pt.x;
+            float vCurrentFrame = CurrentFrame.mvKeysUn[idx1].pt.y;
             int curr_obj = assign1[idx1];
 
             float dist = sqrt((uLastFrame - uCurrentFrame)*(uLastFrame - uCurrentFrame) + (vLastFrame - vCurrentFrame)*(vLastFrame - vCurrentFrame));

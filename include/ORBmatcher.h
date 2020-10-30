@@ -61,7 +61,7 @@ public:
     int SearchByProjection(KeyFrame* pKF, cv::Mat Scw, const std::vector<MapPoint*> &vpPoints, std::vector<MapPoint*> &vpMatched, int th);
 
     vector<int> CheckProjectionAfterPose(Frame &CurrentFrame, const Frame *ReferenceFrame, int obj_index, std::map<int,int> &matches, const float th, const bool bMono);
-    //vector<int> CheckProjectionAfterPose(Frame &CurrentFrame, const KeyFrame *ReferenceFrame, int obj_index, std::map<int,int> &matches, const float th, const bool bMono);
+    vector<int> CheckProjectionAfterPose(Frame &CurrentFrame, KeyFrame *ReferenceFrame, int obj_index, std::map<int,int> &matches, const float th, const bool bMono);
     //vector<int> CheckProjectionAfterPose(Frame &CurrentFrame, const Frame &LastFrame, int obj_index, const float th, const bool bMono);
     // Search matches between MapPoints in a KeyFrame and ORB in a Frame.
     // Brute force constrained to ORB that belong to the same vocabulary node (at a certain level)

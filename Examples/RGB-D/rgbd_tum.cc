@@ -263,6 +263,7 @@ std::set<int> LoadMask(const string &mask_path, cv::Mat &mask)
 	       ss >> category_id;
 	   }
     }
+    //return dynamic_instances;
     return empty;
 }
 void LoadImages(const string &strAssociationFilename, vector<string> &vstrImageFilenamesRGB,
